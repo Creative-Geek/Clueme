@@ -1,0 +1,6 @@
+PyQt6
+pytesseract
+openai
+pynput
+Pillow
+python-dotenv
