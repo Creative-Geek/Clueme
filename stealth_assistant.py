@@ -17,16 +17,22 @@ class StealthWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Stealth Assistant")
-        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.FramelessWindowHint)
+        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowTransparentForInput | Qt.WindowType.WindowTransparentForInput)
         
-        # Make window transparent to screen recording
+        # Make window completely transparent to screen recording
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setWindowState(Qt.WindowState.WindowFullScreen)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+        
+        # Set window size and position for top bar
+        screen = QApplication.primaryScreen().geometry()
+        self.setGeometry(0, 0, screen.width(), 100)  # 100px height bar at the top
         
         # Create central widget and layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
+        layout.setContentsMargins(10, 5, 10, 5)  # Add some padding
         
         # Create text display
         self.text_display = QTextEdit()
@@ -36,8 +42,9 @@ class StealthWindow(QMainWindow):
                 background-color: rgba(0, 0, 0, 0.8);
                 color: white;
                 border: none;
-                border-radius: 10px;
-                padding: 10px;
+                border-radius: 5px;
+                padding: 5px;
+                max-height: 80px;
             }
         """)
         layout.addWidget(self.text_display)
