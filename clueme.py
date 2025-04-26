@@ -1,11 +1,11 @@
 import sys
 import ctypes
-import os
+import os,datetime
 from dotenv import load_dotenv
 from openai import OpenAI
 from PIL import ImageGrab
 import pytesseract
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout
+from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy
 from PyQt6.QtCore import Qt, QPoint, QTimer, QObject, pyqtSignal
 from PyQt6.QtGui import QColor
 # from pynput import keyboard # No longer needed for debugging
@@ -52,13 +52,29 @@ widget.setMinimumSize(650, 100)
 # Set semi-transparency
 widget.setWindowOpacity(0.5)
 
-# Set black background
-widget.setStyleSheet("background-color: black;")
+# Set black background with margins
+widget.setStyleSheet("""
+    QWidget {
+        background-color: black;
+        border-radius: 15px;
+    }
+    QLabel {
+        padding: 20px;
+        color: white;
+        font-size: 16px;
+    }
+""")
 
-# Add a label with white text
+# Add a label with white text and word wrapping
 label = QLabel("Press Ctrl+Alt+R to capture screen and get AI response\nPress Ctrl+Alt+Q to quit")
-label.setStyleSheet("color: white; font-size: 16px;")
+label.setWordWrap(True)
+label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+label.setMinimumWidth(600)  # Ensure minimum width for text wrapping
+label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+# Create layout with margins
 layout = QVBoxLayout()
+layout.setContentsMargins(20, 20, 20, 20)  # Left, Top, Right, Bottom margins
 layout.addWidget(label)
 widget.setLayout(layout)
 
@@ -89,7 +105,14 @@ def get_ai_response(text):
             ]
         )
         content = response.choices[0].message.content
+        # Log to console
         print(f"OpenAI response: {content[:100]}..." if len(content) > 100 else f"OpenAI response: {content}")
+        
+        # Log full request and response to file
+        with open('openai_logs.txt', 'a', encoding='utf-8') as f:
+            f.write(f"\n\n=== {datetime.datetime.now().isoformat()} ===\n")
+            f.write(f"Request text:\n{text}\n\n")
+            f.write(f"Response:\n{content}\n")
 
         # Log additional response information
         print(f"Model used: {response.model}")
@@ -109,6 +132,17 @@ def process_screen_callback():
     print(f"Captured text from screen: {text[:100]}..." if len(text) > 100 else f"Captured text from screen: {text}")
     response = get_ai_response(text)
     label.setText(response)
+    # Adjust window size based on content
+    widget.adjustSize()
+    # Ensure window stays within screen bounds
+    screen = app.primaryScreen().geometry()
+    max_height = screen.height() - 60  # Leave some margin from top and bottom
+    if widget.height() > max_height:
+        widget.setFixedHeight(max_height)
+    # Recenter the window
+    x = (screen.width() - widget.width()) // 2
+    y = 30
+    widget.move(x, y)
 
 # This function is called by the hotkey thread
 def trigger_quit_from_hotkey():
