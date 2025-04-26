@@ -2,7 +2,7 @@ import sys
 import ctypes
 import os
 from dotenv import load_dotenv
-import openai
+from openai import OpenAI
 from PIL import ImageGrab
 import pytesseract
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout
@@ -22,9 +22,20 @@ emitter = SignalEmitter()
 load_dotenv()
 
 # Configure OpenAI
-openai.api_key = os.getenv("OPENAI_API_KEY")
-openai.api_base = os.getenv("OPENAI_API_BASE")
+api_key = os.getenv("OPENAI_API_KEY")
+base_url = os.getenv("OPENAI_API_BASE")  # base_url replaces api_base
 MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+
+# Log configuration (masking the API key for security)
+print(f"OpenAI API Key: {'*' * 4 + api_key[-4:] if api_key else 'Not set'}")
+print(f"OpenAI Base URL: {base_url if base_url else 'Default (https://api.openai.com/v1)'}")
+print(f"OpenAI Model: {MODEL}")
+
+# Initialize the client
+client = OpenAI(
+    api_key=api_key,
+    base_url=base_url
+)
 
 app = QApplication(sys.argv)
 widget = QWidget()
@@ -66,20 +77,36 @@ def capture_screen():
 
 def get_ai_response(text):
     try:
-        response = openai.ChatCompletion.create(
+        # Log the base_url being used
+        print(f"Using OpenAI base_url: {client.base_url}")
+        print(f"Using model: {MODEL}")
+        print(f"Sending request to OpenAI with text: {text[:100]}..." if len(text) > 100 else f"Sending request to OpenAI with text: {text}")
+        response = client.chat.completions.create(
             model=MODEL,
             messages=[
                 {"role": "system", "content": "You are a helpful AI assistant. Provide concise and accurate responses."},
                 {"role": "user", "content": text}
             ]
         )
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        print(f"OpenAI response: {content[:100]}..." if len(content) > 100 else f"OpenAI response: {content}")
+
+        # Log additional response information
+        print(f"Model used: {response.model}")
+        print(f"Completion tokens: {response.usage.completion_tokens}")
+        print(f"Prompt tokens: {response.usage.prompt_tokens}")
+        print(f"Total tokens: {response.usage.total_tokens}")
+
+        return content
     except Exception as e:
-        return f"Error: {str(e)}"
+        error_message = f"Error: {str(e)}"
+        print(f"OpenAI API error: {error_message}")
+        return error_message
 
 def process_screen_callback():
     print("Hotkey Ctrl+Alt+R pressed!")
     text = capture_screen()
+    print(f"Captured text from screen: {text[:100]}..." if len(text) > 100 else f"Captured text from screen: {text}")
     response = get_ai_response(text)
     label.setText(response)
 
