@@ -5,19 +5,35 @@ import base64
 import io
 from PIL import Image
 from openai import OpenAI
+from dotenv import load_dotenv
 
 def is_frozen():
+    """Check if running as a compiled executable (Nuitka)"""
     return getattr(sys, 'frozen', False)
 
-# Get base directory depending on frozen status
-if is_frozen():
-    # Path when running from compiled executable (Nuitka)
-    _base_dir = os.path.dirname(sys.executable)
-    print(f"Running frozen. Base directory: {_base_dir}")
-else:
-    # Path when running as a normal script
-    _base_dir = os.path.dirname(os.path.abspath(__file__))
-    print(f"Running as script. Base directory: {_base_dir}")
+def get_base_dir():
+    """Get the base directory depending on frozen status"""
+    if is_frozen():
+        # Path when running from compiled executable (Nuitka)
+        return os.path.dirname(sys.executable)
+    else:
+        # Path when running as a normal script
+        return os.path.dirname(os.path.abspath(__file__))
+
+def load_env_settings():
+    """Load environment settings from .env file"""
+    base_dir = get_base_dir()
+    env_path = os.path.join(base_dir, '.env')
+    
+    if os.path.exists(env_path):
+        print(f"Loading settings from: {env_path}")
+        load_dotenv(env_path)
+    else:
+        print(f"Warning: .env file not found at {env_path}")
+        print("Using default settings or environment variables")
+
+# Load environment variables
+load_env_settings()
 
 # Engine Setting - Only Gemini supported in this version
 OCR_ENGINE = "gemini"
@@ -26,6 +42,12 @@ OCR_ENGINE = "gemini"
 gemini_api_key = os.getenv("GEMINI_API_KEY")
 gemini_base_url = os.getenv("GEMINI_BASE_URL")
 gemini_ocr_model = os.getenv("GEMINI_OCR_MODEL", "gemini-2.5-flash-preview-04-17")
+
+# Log configuration
+print(f"Base Directory: {get_base_dir()}")
+print(f"Gemini API Key: {'*' * 4 + gemini_api_key[-4:] if gemini_api_key else 'Not set'}")
+print(f"Gemini Base URL: {gemini_base_url if gemini_base_url else 'Not set'}")
+print(f"Gemini OCR Model: {gemini_ocr_model}")
 
 # Client initialization
 gemini_client = None

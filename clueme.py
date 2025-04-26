@@ -14,8 +14,33 @@ from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizeP
 from PySide6.QtCore import Qt, QObject, Signal, QThread, Slot
 from global_hotkeys import *
 
+def is_frozen():
+    """Check if running as a compiled executable (Nuitka)"""
+    return getattr(sys, 'frozen', False)
+
+def get_base_dir():
+    """Get the base directory depending on frozen status"""
+    if is_frozen():
+        # Path when running from compiled executable (Nuitka)
+        return os.path.dirname(sys.executable)
+    else:
+        # Path when running as a normal script
+        return os.path.dirname(os.path.abspath(__file__))
+
+def load_env_settings():
+    """Load environment settings from .env file"""
+    base_dir = get_base_dir()
+    env_path = os.path.join(base_dir, '.env')
+    
+    if os.path.exists(env_path):
+        print(f"Loading settings from: {env_path}")
+        load_dotenv(env_path)
+    else:
+        print(f"Warning: .env file not found at {env_path}")
+        print("Using default settings or environment variables")
+
 # Load environment variables
-load_dotenv()
+load_env_settings()
 
 # --- Display Selected OCR Engine ---
 print(f"Using OCR Engine: GEMINI")
@@ -45,6 +70,7 @@ def parse_hotkey(hotkey_str):
     return [modifiers, key]
 
 # Log configuration
+print(f"Base Directory: {get_base_dir()}")
 print(f"OpenAI API Key: {'*' * 4 + API_KEY[-4:] if API_KEY else 'Not set'}")
 print(f"OpenAI Base URL (Default): {BASE_URL if BASE_URL else 'Default (https://api.openai.com/v1)'}")
 print(f"Smarter Model API Base: {SMARTER_MODEL_API_BASE if SMARTER_MODEL_API_BASE else 'Same as default'}")
