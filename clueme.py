@@ -8,9 +8,10 @@ app = QApplication(sys.argv)
 widget = QWidget()
 
 # Set window flags for borderless and click-through
-widget.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+widget.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool | Qt.WindowType.WindowTransparentForInput)
 widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+widget.setAttribute(Qt.WidgetAttribute.WA_NoMousePropagation)
 
 # Set minimum size
 widget.setMinimumSize(650, 100)
@@ -24,6 +25,7 @@ widget.setStyleSheet("background-color: black;")
 # Add a label with white text
 label = QLabel("Test Window")
 label.setStyleSheet("color: white; font-size: 24px;")
+label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 layout = QVBoxLayout()
 layout.addWidget(label)
 widget.setLayout(layout)
