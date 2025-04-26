@@ -1,4 +1,5 @@
 openai_logs.txt
 .env
-__pycache__
+__pycache__/*
 gemini_ocr_input.webp
+__pycache__/ocr.cpython-313.pyc
