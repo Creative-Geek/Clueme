@@ -1,36 +1,35 @@
-# main_app.py
 import sys
 import ctypes
-import os, datetime
+import os
+import datetime
 import json
 from dotenv import load_dotenv
 from openai import OpenAI
 from PIL import ImageGrab
 
 import ocr
-# Changed: Import from PySide6 instead of PyQt6
+
+# Import from PySide6 instead of PyQt6
 from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy
-from PySide6.QtCore import Qt, QObject, Signal, QThread, Slot # Changed: pyqtSignal to Signal, pyqtSlot to Slot
+from PySide6.QtCore import Qt, QObject, Signal, QThread, Slot
 from global_hotkeys import *
 
 # Load environment variables
 load_dotenv()
 
 # --- Display Selected OCR Engine ---
-print(f"Using OCR Engine: {ocr.OCR_ENGINE.upper()}")
-# ---
+print(f"Using OCR Engine: GEMINI")
 
 # Configure OpenAI
 API_KEY = os.getenv("OPENAI_API_KEY")
 BASE_URL = os.getenv("OPENAI_API_BASE")
 SMARTER_MODEL_API_BASE = os.getenv("SMARTER_MODEL_API_BASE")
-CHEAPER_MODEL = os.getenv("CHEAPER_MODEL", "gpt-3.5-turbo")
 SMARTER_MODEL = os.getenv("SMARTER_MODEL", "gpt-4")
 
 # Configure hotkeys
-CAPTURE_HOTKEY = os.getenv("CAPTURE_HOTKEY", "Ctrl+Alt+R")
+CAPTURE_HOTKEY = os.getenv("CAPTURE_HOTKEY", "Alt+Enter")
 QUIT_HOTKEY = os.getenv("QUIT_HOTKEY", "Ctrl+Alt+Q")
-RESET_HOTKEY = os.getenv("RESET_HOTKEY", "Win+Alt+R")
+RESET_HOTKEY = os.getenv("RESET_HOTKEY", "Ctrl+Alt+R")
 
 def parse_hotkey(hotkey_str):
     """Parse a hotkey string like 'Ctrl+Alt+R' into a list of modifiers and key."""
@@ -49,8 +48,7 @@ def parse_hotkey(hotkey_str):
 print(f"OpenAI API Key: {'*' * 4 + API_KEY[-4:] if API_KEY else 'Not set'}")
 print(f"OpenAI Base URL (Default): {BASE_URL if BASE_URL else 'Default (https://api.openai.com/v1)'}")
 print(f"Smarter Model API Base: {SMARTER_MODEL_API_BASE if SMARTER_MODEL_API_BASE else 'Same as default'}")
-print(f"Extraction Model (Cheaper): {CHEAPER_MODEL}")
-print(f"Answering Model (Smarter): {SMARTER_MODEL}")
+print(f"Answering Model: {SMARTER_MODEL}")
 print(f"Capture Hotkey: {CAPTURE_HOTKEY}")
 print(f"Quit Hotkey: {QUIT_HOTKEY}")
 print(f"Reset Hotkey: {RESET_HOTKEY}")
@@ -60,7 +58,7 @@ if not API_KEY:
     print("Error: OPENAI_API_KEY environment variable not set.")
     sys.exit(1)
 
-# Default client for cheaper model
+# Create client for the smarter model
 client = OpenAI(
     api_key=API_KEY,
     base_url=BASE_URL
@@ -91,96 +89,29 @@ emitter = SignalEmitter()
 
 # --- Worker Thread for AI Calls ---
 class AIWorker(QObject):
-    # Changed: pyqtSlot to Slot
-    @Slot(str)
-    def run_extraction(self, text):
-        """Runs the first AI step (extraction)"""
-        try:
-            print(f"\n--- Step 1: Extracting MCQ using {CHEAPER_MODEL} ---")
-            print(f"Input text (first 100 chars): {text[:100]}...")
-
-            # --- Step 1: Extract MCQ Data ---
-            extraction_prompt = """
-            Analyze the following text extracted via OCR. Determine if it contains a multiple-choice question (MCQ).
-            Output a JSON object with the following structure:
-            {
-              "question_found": boolean, // true if an MCQ is found, false otherwise
-              "question": "The extracted question text." | null, // null if question_found is false
-              "choices": ["A) Choice A text with its number", "B) Choice B text with its number", ...] | null // null if question_found is false or choices aren't clear
-            }
-            The text is extracted via OCR so it may contain errors, fix those errors in the output.
-            If there is code, include it in the question text.
-            Only output the JSON object. Do not include any other text or explanations.
-            Focus on identifying a clear question stem and distinct answer options (often labeled A, B, C, D or 1, 2, 3, 4).
-            If no clear MCQ is present, set "question_found" to false.
-            If there are multiple questions present, only return the first one.
-            """
-
-            response = client.chat.completions.create(
-                model=CHEAPER_MODEL,
-                messages=[
-                    {"role": "system", "content": extraction_prompt},
-                    {"role": "user", "content": text}
-                ],
-                response_format={"type": "json_object"}
-            )
-
-            response_content = response.choices[0].message.content
-            print(f"Raw Extraction Response: {response_content}")
-
-            # Parse the JSON response
-            try:
-                extracted_data = json.loads(response_content)
-                # Basic validation
-                if not isinstance(extracted_data.get("question_found"), bool):
-                     raise ValueError("Invalid 'question_found' field")
-                if extracted_data.get("question_found"):
-                    if not isinstance(extracted_data.get("question"), str) or not isinstance(extracted_data.get("choices"), list):
-                         raise ValueError("Missing or invalid 'question' or 'choices' when question_found is true")
-                     # Further validation: ensure choices are strings
-                    if not all(isinstance(item, str) for item in extracted_data.get("choices", [])):
-                         raise ValueError("Not all items in 'choices' are strings")
-
-                print(f"Parsed Extraction Data: {extracted_data}")
-                emitter.extraction_complete.emit(extracted_data) # Emit result
-
-            except json.JSONDecodeError:
-                print("Error: AI did not return valid JSON for extraction.")
-                emitter.error_occurred.emit("Error: Failed to parse extraction result.")
-            except ValueError as ve:
-                print(f"Error: Invalid JSON structure received: {ve}")
-                emitter.error_occurred.emit(f"Error: Invalid extraction structure ({ve}).")
-
-        except Exception as e:
-            error_message = f"Error during Step 1 (Extraction): {str(e)}"
-            print(error_message)
-            emitter.error_occurred.emit(error_message)
-
-
-    # Changed: pyqtSlot to Slot
     @Slot(dict)
     def run_answering(self, extracted_data):
-        """Runs the second AI step (answering) if a question was found."""
+        """Runs the AI step (answering) if a question was found."""
         if not extracted_data.get("question_found"):
-            print("Step 1 result: No question found. Skipping Step 2.")
+            print("No question found. Skipping answering step.")
             emitter.response_chunk_received.emit("Didn't find any questions.")
             emitter.response_finished.emit()
             return
         if not extracted_data.get("question") or not extracted_data.get("choices"):
-             print("Step 1 result: Question found but question/choices missing. Skipping Step 2.")
-             emitter.response_chunk_received.emit("Found question but couldn't extract details.")
-             emitter.response_finished.emit()
-             return
+            print("Question found but question/choices missing. Skipping answering step.")
+            emitter.response_chunk_received.emit("Found question but couldn't extract details.")
+            emitter.response_finished.emit()
+            return
 
         question = extracted_data["question"]
         choices = extracted_data["choices"]
 
-        print(f"\n--- Step 2: Answering MCQ using {SMARTER_MODEL} ---")
+        print(f"\n--- Answering MCQ using {SMARTER_MODEL} ---")
         print(f"Question: {question}")
         print(f"Choices: {choices}")
 
         try:
-            # --- Step 2: Get Answer and Explanation ---
+            # --- Get Answer and Explanation ---
             answering_prompt = f"""
             You are an expert AI assistant. Answer the following multiple-choice question and provide a brief explanation for your choice.
             Limit your total response (answer + explanation) to approximately 700 characters.
@@ -219,26 +150,24 @@ class AIWorker(QObject):
 
             with open('openai_logs.txt', 'a', encoding='utf-8') as f:
                 f.write(f"\n\n=== {datetime.datetime.now().isoformat()} ===\n")
-                f.write(f"Step 1 Extracted Question:\n{question}\n")
-                f.write(f"Step 1 Extracted Choices:\n{choices}\n\n")
-                f.write(f"Step 2 Answering Prompt (User):\n{answering_prompt}\n\n")
-                f.write(f"Step 2 Response (Smarter Model):\n{full_response_content}\n")
+                f.write(f"Extracted Question:\n{question}\n")
+                f.write(f"Extracted Choices:\n{choices}\n\n")
+                f.write(f"Answering Prompt (User):\n{answering_prompt}\n\n")
+                f.write(f"Response (Smarter Model):\n{full_response_content}\n")
 
-            print(f"Step 2 Full OpenAI response logged. Length: {len(full_response_content)}")
+            print(f"Full OpenAI response logged. Length: {len(full_response_content)}")
 
         except Exception as e:
-            error_message = f"Error during Step 2 (Answering): {str(e)}"
+            error_message = f"Error during answering: {str(e)}"
             print(error_message)
             emitter.response_chunk_received.emit(error_message)
             emitter.response_finished.emit()
 
 # --- PySide6 UI Setup ---
-# Changed: Using QApplication from PySide6
 app = QApplication(sys.argv)
-# Changed: Using QWidget from PySide6
 widget = QWidget()
 
-# Window Styling (Qt enums are generally the same)
+# Window Styling
 widget.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool | Qt.WindowType.WindowTransparentForInput)
 widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -246,26 +175,23 @@ widget.setAttribute(Qt.WidgetAttribute.WA_NoMousePropagation)
 widget.setMinimumSize(650, 100)
 widget.setWindowOpacity(0.6)
 widget.setStyleSheet("""
-    QWidget {
-        background-color: black;
-        border-radius: 15px;
-    }
-    QLabel {
-        padding: 20px;
-        color: white;
-        font-size: 16px;
-    }
+QWidget {
+    background-color: black;
+    border-radius: 15px;
+}
+QLabel {
+    padding: 20px;
+    color: white;
+    font-size: 16px;
+}
 """)
 
-# Changed: Using QLabel from PySide6
 label = QLabel("Press " + CAPTURE_HOTKEY + " to capture screen and get AI response\nPress " + QUIT_HOTKEY + " to quit")
 label.setWordWrap(True)
 label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
 label.setMinimumWidth(600)
-# Changed: Using QSizePolicy from PySide6
 label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-# Changed: Using QVBoxLayout from PySide6
 layout = QVBoxLayout()
 layout.setContentsMargins(15, 15, 15, 15)
 layout.addWidget(label)
@@ -278,51 +204,40 @@ def position_widget():
     max_height = screen.height() * 0.6
     if widget.height() > max_height:
         widget.setFixedHeight(int(max_height))
-
+    
     x = (screen.width() - widget.width()) // 2
     y = 30
     widget.move(x, y)
 
-position_widget() # Initial position
+position_widget()  # Initial position
 
 # --- Screen Capture ---
 def capture_screen():
-    """Captures the screen and performs OCR using the configured engine."""
+    """Captures the screen and performs OCR using Gemini Vision."""
     try:
         screenshot_pil = ImageGrab.grab()
-        print("Screenshot grabbed. Performing OCR...")
-
+        print("Screenshot grabbed. Performing OCR with Gemini Vision...")
+        
         # Call the perform_ocr function from the ocr module
         text = ocr.perform_ocr(screenshot_pil)
-
-        if text is None and ocr.OCR_ENGINE.lower() != "pytesseract":
-            print("Primary OCR failed. Attempting fallback to pytesseract...")
-            # Temporarily set engine to pytesseract and try again
-            prev_engine = ocr.OCR_ENGINE
-            ocr.OCR_ENGINE = "pytesseract"
-            text = ocr.perform_ocr(screenshot_pil)
-            ocr.OCR_ENGINE = prev_engine
-            if text is not None:
-                print("Fallback to pytesseract successful.")
-            else:
-                print("Fallback to pytesseract failed.")
-
+        
         if text is None:
-            print("OCR failed.") # Specific errors logged in ocr.py
-            emitter.error_occurred.emit(f"OCR process failed (Engine: {ocr.OCR_ENGINE.upper()}). Check logs.")
+            print("OCR failed.")
+            emitter.error_occurred.emit(f"OCR process failed with Gemini Vision. Check logs.")
             return None
-
+        
         print("OCR successful.")
-
+        
         # Log the captured text
         print(f"Captured text (first 200 chars): {text[:200]}")
         # Log full OCR text to file
         with open('openai_logs.txt', 'a', encoding='utf-8') as f:
-            f.write(f"\n\n=== OCR TEXT ({ocr.OCR_ENGINE.upper()}) {datetime.datetime.now().isoformat()} ===\n")
+            f.write(f"\n\n=== OCR TEXT (GEMINI) {datetime.datetime.now().isoformat()} ===\n")
             f.write(text)
             f.write("\n=== END OCR TEXT ===\n")
-
+        
         return text
+        
     except Exception as e:
         # Catch errors during ImageGrab itself or other unexpected issues here
         print(f"Error during screen capture phase: {e}")
@@ -330,23 +245,21 @@ def capture_screen():
         return None
 
 # --- Global State ---
-is_processing = False # Flag to prevent concurrent processing
-is_first_chunk = True # Flag for clearing label on first chunk of Step 2
+is_processing = False  # Flag to prevent concurrent processing
+is_first_chunk = True  # Flag for clearing label on first chunk of Step 2
 
 # --- UI Update Slots ---
-# Changed: pyqtSlot to Slot
 @Slot(str)
 def update_label_chunk(chunk):
     global is_first_chunk
     if is_first_chunk:
         label.setText("")
         is_first_chunk = False
-
+    
     current_text = label.text()
     label.setText(current_text + chunk)
     position_widget()
 
-# Changed: pyqtSlot to Slot
 @Slot()
 def handle_response_finished():
     global is_processing
@@ -354,7 +267,6 @@ def handle_response_finished():
     is_processing = False
     position_widget()
 
-# Changed: pyqtSlot to Slot
 @Slot(str)
 def handle_error(error_message):
     global is_processing
@@ -363,7 +275,6 @@ def handle_error(error_message):
     is_processing = False
     position_widget()
 
-# Changed: pyqtSlot to Slot
 @Slot()
 def show_thinking():
     global is_first_chunk
@@ -377,26 +288,47 @@ def process_screen_callback():
     if is_processing:
         print("Already processing, ignoring hotkey press.")
         return
-
+    
     print("Capture Hotkey pressed!")
     is_processing = True
     emitter.processing_started.emit()
-
+    
     # Perform screen capture and OCR
     text = capture_screen()
-
+    
     if text:
-        # Move AI processing to the worker thread
-        worker.run_extraction(text)
+        try:
+            # Parse the JSON response from Gemini
+            extracted_data = json.loads(text)
+            # Basic validation
+            if not isinstance(extracted_data.get("question_found"), bool):
+                raise ValueError("Invalid 'question_found' field")
+            if extracted_data.get("question_found"):
+                if not isinstance(extracted_data.get("question"), str) or not isinstance(extracted_data.get("choices"), list):
+                    raise ValueError("Missing or invalid 'question' or 'choices' when question_found is true")
+                # Further validation: ensure choices are strings
+                if not all(isinstance(item, str) for item in extracted_data.get("choices", [])):
+                    raise ValueError("Not all items in 'choices' are strings")
+
+            print(f"Parsed Extraction Data: {extracted_data}")
+            emitter.extraction_complete.emit(extracted_data)  # Emit result directly to answering step
+
+        except json.JSONDecodeError:
+            print("Error: Gemini did not return valid JSON for extraction.")
+            emitter.error_occurred.emit("Error: Failed to parse extraction result.")
+            is_processing = False
+        except ValueError as ve:
+            print(f"Error: Invalid JSON structure received: {ve}")
+            emitter.error_occurred.emit(f"Error: Invalid extraction structure ({ve}).")
+            is_processing = False
     else:
         # Handle OCR failure immediately (error signal already emitted)
-        is_processing = False # Reset processing flag
+        is_processing = False  # Reset processing flag
 
 def trigger_quit_from_hotkey():
     print("Quit Hotkey pressed!")
     emitter.quit_signal.emit()
 
-# Changed: pyqtSlot to Slot
 @Slot()
 def perform_quit():
     print("Quit signal received. Stopping listeners and quitting...")
@@ -411,7 +343,7 @@ def reset_program():
     if is_processing:
         print("Cannot reset while processing.")
         return
-
+    
     print("Reset Hotkey pressed!")
     is_first_chunk = True
     is_processing = False
@@ -419,7 +351,6 @@ def reset_program():
     position_widget()
 
 # --- Signal/Slot Connections ---
-# Connect using .connect() as before
 emitter.processing_started.connect(show_thinking)
 emitter.response_chunk_received.connect(update_label_chunk)
 emitter.response_finished.connect(handle_response_finished)
@@ -427,7 +358,6 @@ emitter.error_occurred.connect(handle_error)
 emitter.quit_signal.connect(perform_quit)
 
 # --- Setup Worker Thread ---
-# Changed: Using QThread from PySide6
 thread = QThread()
 worker = AIWorker()
 worker.moveToThread(thread)
@@ -438,10 +368,11 @@ thread.started.connect(lambda: print("Worker thread started."))
 thread.finished.connect(lambda: print("Worker thread finished."))
 emitter.quit_signal.connect(thread.quit)
 emitter.quit_signal.connect(worker.deleteLater)
+
 # Use wait() for proper thread termination before app exit
 emitter.quit_signal.connect(thread.wait)
 
-thread.start() # Start the thread event loop
+thread.start()  # Start the thread event loop
 
 # --- Register Hotkeys ---
 hotkeys_bindings = [
@@ -452,13 +383,13 @@ hotkeys_bindings = [
 
 registered_hotkeys = []
 for binding in hotkeys_bindings:
-     try:
-         parsed = parse_hotkey(binding["key"])
-         hotkey_definition = parsed[0] + [parsed[1]]
-         registered_hotkeys.append([hotkey_definition, binding["callback"], None])
-         print(f"Registering hotkey: {binding['key']} -> {hotkey_definition}")
-     except Exception as e:
-         print(f"Error parsing or registering hotkey '{binding['key']}': {e}")
+    try:
+        parsed = parse_hotkey(binding["key"])
+        hotkey_definition = parsed[0] + [parsed[1]]
+        registered_hotkeys.append([hotkey_definition, binding["callback"], None])
+        print(f"Registering hotkey: {binding['key']} -> {hotkey_definition}")
+    except Exception as e:
+        print(f"Error parsing or registering hotkey '{binding['key']}': {e}")
 
 if registered_hotkeys:
     try:
@@ -466,24 +397,21 @@ if registered_hotkeys:
         start_checking_hotkeys()
         print("Hotkey listener started.")
     except Exception as e:
-         print(f"Failed to start hotkey listener: {e}")
-         # sys.exit(1) # Consider exiting if hotkeys fail
+        print(f"Failed to start hotkey listener: {e}")
+        sys.exit(1)  # Consider exiting if hotkeys fail
 else:
     print("No valid hotkeys registered. Exiting.")
     sys.exit(1)
 
-
 # --- Show Window and Run App ---
 widget.show()
 try:
-    # winId() method is the same
     hwnd = widget.winId()
     ctypes.windll.user32.SetWindowDisplayAffinity(int(hwnd), 0x00000011)
     print("Window display affinity set to exclude from capture.")
 except Exception as e:
     print(f"Could not set window display affinity (might be normal on non-Windows): {e}")
 
-# Changed: Using app.exec() which is the standard in PySide6 (and PyQt6)
 exit_code = app.exec()
 print("Application exiting.")
 if registered_hotkeys:
