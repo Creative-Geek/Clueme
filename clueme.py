@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout
 from PyQt6.QtCore import Qt, QPoint, QTimer
 from PyQt6.QtGui import QColor
 from pynput import keyboard
+from global_hotkeys import *
 
 # Load environment variables
 load_dotenv()
@@ -37,9 +38,6 @@ widget.setWindowOpacity(0.5)
 widget.setStyleSheet("background-color: black;")
 
 # Add a label with white text
-label = QLabel("Test Window")
-label.setStyleSheet("color: white; font-size: 24px;")
-label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 label = QLabel("Press Ctrl+Alt+R to capture screen and get AI response\nPress Ctrl+Alt+Q to quit")
 label.setStyleSheet("color: white; font-size: 16px;")
 layout = QVBoxLayout()
@@ -72,38 +70,37 @@ def get_ai_response(text):
     except Exception as e:
         return f"Error: {str(e)}"
 
-def process_screen():
+def process_screen_callback():
+    print("Hotkey Ctrl+Alt+R pressed!")
     text = capture_screen()
     response = get_ai_response(text)
     label.setText(response)
 
-def quit_app():
+def quit_app_callback():
+    print("Hotkey Ctrl+Alt+Q pressed!")
     app.quit()
 
-# Global keyboard monitoring
-current_keys = set()
-
-def on_press(key):
+# Debug logging for all key presses using pynput
+def on_press_debug(key):
     try:
-        current_keys.add(key)
-        # Check for Ctrl+Alt+R
-        if keyboard.Key.ctrl in current_keys and keyboard.Key.alt in current_keys and key == keyboard.KeyCode.from_char('r'):
-            process_screen()
-        # Check for Ctrl+Alt+Q
-        elif keyboard.Key.ctrl in current_keys and keyboard.Key.alt in current_keys and key == keyboard.KeyCode.from_char('q'):
-            quit_app()
+        print(f"Key pressed: {key.char}")
     except AttributeError:
-        pass
+        print(f"Special key pressed: {key}")
 
-def on_release(key):
-    try:
-        current_keys.remove(key)
-    except KeyError:
-        pass
+# Start pynput listener for debugging
+debug_listener = keyboard.Listener(on_press=on_press_debug)
+debug_listener.start()
 
-# Start keyboard listener
-listener = keyboard.Listener(on_press=on_press, on_release=on_release)
-listener.start()
+# Define and register global hotkeys
+hotkeys = [
+    # Format: [ ["modifier", "key"], key_down_callback, key_up_callback (optional) ], ...
+    [ ["control", "alt", "r"], process_screen_callback, None ],
+    [ ["control", "alt", "q"], quit_app_callback, None ]
+]
+register_hotkeys(hotkeys)
+
+# Start listening for hotkeys
+start_checking_hotkeys()
 
 widget.show()
 hwnd = widget.winId()
