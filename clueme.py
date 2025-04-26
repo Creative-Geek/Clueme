@@ -5,14 +5,16 @@ import json # Import json library
 from dotenv import load_dotenv
 from openai import OpenAI
 from PIL import ImageGrab
-import pytesseract
+# import pytesseract # REMOVED
+import easyocr # ADDED
+import numpy as np # ADDED
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, QThread, pyqtSlot # Import QThread, pyqtSlot
 from PyQt6.QtGui import QColor
 from global_hotkeys import *
 
 # --- Configuration ---
-pytesseract.pytesseract.tesseract_cmd=r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+# pytesseract.pytesseract.tesseract_cmd=r'C:\Program Files\Tesseract-OCR\tesseract.exe' # REMOVED
 
 # Load environment variables
 load_dotenv()
@@ -30,6 +32,25 @@ SMARTER_MODEL = os.getenv("SMARTER_MODEL", "gpt-4") # Default to gpt-4 for answe
 CAPTURE_HOTKEY = os.getenv("CAPTURE_HOTKEY", "Ctrl+Alt+R")
 QUIT_HOTKEY = os.getenv("QUIT_HOTKEY", "Ctrl+Alt+Q")
 RESET_HOTKEY = os.getenv("RESET_HOTKEY", "Win+Alt+R")
+
+# --- Initialize EasyOCR Reader ---
+print("Initializing EasyOCR Reader (this may take a moment)...")
+# Initialize the reader with the desired language(s)
+# It will download models automatically the first time.
+# Use gpu=False if you don't have a compatible GPU or CUDA setup
+try:
+    # Try with GPU first (default)
+    ocr_reader = easyocr.Reader(['en'], gpu=True)
+    print("EasyOCR Reader initialized with GPU.")
+except Exception as e:
+    print(f"GPU initialization failed ({e}), falling back to CPU...")
+    try:
+        ocr_reader = easyocr.Reader(['en'], gpu=False)
+        print("EasyOCR Reader initialized with CPU.")
+    except Exception as e_cpu:
+        print(f"FATAL: Failed to initialize EasyOCR Reader on CPU: {e_cpu}")
+        sys.exit(1)
+# ---
 
 def parse_hotkey(hotkey_str):
     """Parse a hotkey string like 'Ctrl+Alt+R' into a list of modifiers and key."""
@@ -286,23 +307,36 @@ position_widget() # Initial position
 
 # --- Screen Capture ---
 def capture_screen():
+    """Captures the screen and performs OCR using EasyOCR."""
+    global ocr_reader # Access the globally initialized reader
     try:
-        screenshot = ImageGrab.grab()
-        text = pytesseract.image_to_string(screenshot)
-        print("OCR successful.")
+        screenshot_pil = ImageGrab.grab()
+        # Convert PIL Image to NumPy array (required by EasyOCR)
+        screenshot_np = np.array(screenshot_pil)
+
+        print("Running EasyOCR...")
+        # Perform OCR
+        # detail=0 returns only the text, detail=1 returns text, box, and confidence
+        # paragraph=True attempts to join nearby text blocks
+        results = ocr_reader.readtext(screenshot_np, detail=0, paragraph=True)
+
+        # Join the detected text fragments into a single string
+        text = "\n".join(results) # Join with newlines to preserve structure better
+
+        print("EasyOCR successful.")
 
         # Log the captured text
         print(f"Captured text (first 200 chars): {text[:200]}")
         # Log full OCR text to file
         with open('openai_logs.txt', 'a', encoding='utf-8') as f:
-            f.write(f"\n\n=== OCR TEXT {datetime.datetime.now().isoformat()} ===\n")
+            f.write(f"\n\n=== OCR TEXT (EasyOCR) {datetime.datetime.now().isoformat()} ===\n")
             f.write(text)
             f.write("\n=== END OCR TEXT ===\n")
 
         return text
     except Exception as e:
-        print(f"Error during screen capture or OCR: {e}")
-        emitter.error_occurred.emit(f"Error capturing screen: {e}")
+        print(f"Error during screen capture or EasyOCR: {e}")
+        emitter.error_occurred.emit(f"Error capturing/OCR screen: {e}")
         return None
 
 # --- Global State ---
@@ -354,7 +388,7 @@ def process_screen_callback():
     is_processing = True
     emitter.processing_started.emit() # Show "Thinking..."
 
-    # Perform OCR in the main thread (usually fast enough)
+    # Perform OCR in the main thread (EasyOCR can take a moment)
     text = capture_screen()
     if text:
         # Move AI processing to the worker thread
