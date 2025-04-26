@@ -28,10 +28,39 @@ api_key = os.getenv("OPENAI_API_KEY")
 base_url = os.getenv("OPENAI_API_BASE")  # base_url replaces api_base
 MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
+# Configure hotkeys
+CAPTURE_HOTKEY = os.getenv("CAPTURE_HOTKEY", "Ctrl+Alt+R")
+QUIT_HOTKEY = os.getenv("QUIT_HOTKEY", "Ctrl+Alt+Q")
+
+def parse_hotkey(hotkey_str):
+    """Parse a hotkey string like 'Ctrl+Alt+R' into a list of modifiers and key."""
+    parts = hotkey_str.lower().split('+')
+    modifiers = []
+    key = parts[-1]  # Last part is the key
+    
+    # Process modifiers
+    for part in parts[:-1]:
+        if part in ['ctrl', 'control']:
+            modifiers.append('control')
+        elif part in ['alt']:
+            modifiers.append('alt')
+        elif part in ['win', 'windows']:
+            modifiers.append('win')
+        elif part in ['shift']:
+            modifiers.append('shift')
+    
+    # Handle special keys
+    if key == 'enter':
+        key = 'enter'  # Keep as 'enter' for global_hotkeys
+    
+    return [modifiers, key]
+
 # Log configuration (masking the API key for security)
 print(f"OpenAI API Key: {'*' * 4 + api_key[-4:] if api_key else 'Not set'}")
 print(f"OpenAI Base URL: {base_url if base_url else 'Default (https://api.openai.com/v1)'}")
 print(f"OpenAI Model: {MODEL}")
+print(f"Capture Hotkey: {CAPTURE_HOTKEY}")
+print(f"Quit Hotkey: {QUIT_HOTKEY}")
 
 # Initialize the client
 client = OpenAI(
@@ -215,8 +244,8 @@ emitter.response_finished.connect(handle_response_finished) # Connect finish sig
 # Define and register global hotkeys
 hotkeys = [
     # Format: [ ["modifier", "key"], key_down_callback, key_up_callback (optional) ], ...
-    [ ["control", "alt", "r"], process_screen_callback, None ],
-    [ ["control", "alt", "q"], trigger_quit_from_hotkey, None ]
+    [ parse_hotkey(CAPTURE_HOTKEY)[0] + [parse_hotkey(CAPTURE_HOTKEY)[1]], process_screen_callback, None ],
+    [ parse_hotkey(QUIT_HOTKEY)[0] + [parse_hotkey(QUIT_HOTKEY)[1]], trigger_quit_from_hotkey, None ]
 ]
 register_hotkeys(hotkeys)
 
