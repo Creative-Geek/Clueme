@@ -20,6 +20,7 @@ load_dotenv()
 # Configure OpenAI
 API_KEY = os.getenv("OPENAI_API_KEY")
 BASE_URL = os.getenv("OPENAI_API_BASE")  # base_url replaces api_base
+SMARTER_MODEL_API_BASE = os.getenv("SMARTER_MODEL_API_BASE")  # New: separate API endpoint for smarter model
 # --- New: Model Selection ---
 CHEAPER_MODEL = os.getenv("CHEAPER_MODEL", "gpt-3.5-turbo") # Default to 3.5-turbo for extraction
 SMARTER_MODEL = os.getenv("SMARTER_MODEL", "gpt-4") # Default to gpt-4 for answering (or adjust as needed)
@@ -45,7 +46,8 @@ def parse_hotkey(hotkey_str):
 
 # Log configuration
 print(f"OpenAI API Key: {'*' * 4 + API_KEY[-4:] if API_KEY else 'Not set'}")
-print(f"OpenAI Base URL: {BASE_URL if BASE_URL else 'Default (https://api.openai.com/v1)'}")
+print(f"OpenAI Base URL (Default): {BASE_URL if BASE_URL else 'Default (https://api.openai.com/v1)'}")
+print(f"Smarter Model API Base: {SMARTER_MODEL_API_BASE if SMARTER_MODEL_API_BASE else 'Same as default'}")
 print(f"Extraction Model (Cheaper): {CHEAPER_MODEL}")
 print(f"Answering Model (Smarter): {SMARTER_MODEL}")
 print(f"Capture Hotkey: {CAPTURE_HOTKEY}")
@@ -57,10 +59,23 @@ if not API_KEY:
     print("Error: OPENAI_API_KEY environment variable not set.")
     sys.exit(1)
 
+# Default client for cheaper model
 client = OpenAI(
     api_key=API_KEY,
     base_url=BASE_URL
 )
+
+# Create a separate client for the smarter model if a different API base is specified
+smarter_client = None
+if SMARTER_MODEL_API_BASE and SMARTER_MODEL_API_BASE != BASE_URL:
+    print("Using separate client for smarter model with different API base")
+    smarter_client = OpenAI(
+        api_key=API_KEY,
+        base_url=SMARTER_MODEL_API_BASE
+    )
+else:
+    # Use the same client for both models
+    smarter_client = client
 
 # --- Signal Emitter ---
 class SignalEmitter(QObject):
@@ -180,7 +195,8 @@ class AIWorker(QObject):
             # New: include last question and choices as context for smart model
             context_content = f"Context from extraction:\nQuestion: {question}\nChoices:\n" + "\n".join(f"- {choice}" for choice in choices)
 
-            stream = client.chat.completions.create(
+            # Use the smarter_client for the smarter model
+            stream = smarter_client.chat.completions.create(
                 model=SMARTER_MODEL,
                 messages=[
                     {"role": "system", "content": context_content},
@@ -274,7 +290,7 @@ def capture_screen():
         screenshot = ImageGrab.grab()
         text = pytesseract.image_to_string(screenshot)
         print("OCR successful.")
-        
+
         # Log the captured text
         print(f"Captured text (first 200 chars): {text[:200]}")
         # Log full OCR text to file
@@ -282,7 +298,7 @@ def capture_screen():
             f.write(f"\n\n=== OCR TEXT {datetime.datetime.now().isoformat()} ===\n")
             f.write(text)
             f.write("\n=== END OCR TEXT ===\n")
-            
+
         return text
     except Exception as e:
         print(f"Error during screen capture or OCR: {e}")
