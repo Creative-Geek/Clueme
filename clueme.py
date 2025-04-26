@@ -14,6 +14,8 @@ pytesseract.pytesseract.tesseract_cmd=r'C:\Program Files\Tesseract-OCR\tesseract
 # --- Custom Signal Emitter ---
 class SignalEmitter(QObject):
     quit_signal = pyqtSignal()
+    response_chunk_received = pyqtSignal(str) # Signal for streaming chunks
+    response_finished = pyqtSignal()         # Signal for stream completion
 
 emitter = SignalEmitter()
 # -----------------------------
@@ -97,52 +99,88 @@ def get_ai_response(text):
         print(f"Using OpenAI base_url: {client.base_url}")
         print(f"Using model: {MODEL}")
         print(f"Sending request to OpenAI with text: {text[:100]}..." if len(text) > 100 else f"Sending request to OpenAI with text: {text}")
-        response = client.chat.completions.create(
+
+        stream = client.chat.completions.create(
             model=MODEL,
             messages=[
                 {"role": "system", "content": "You are a helpful AI assistant. Provide concise and accurate responses."},
                 {"role": "user", "content": text}
-            ]
+            ],
+            stream=True
         )
-        content = response.choices[0].message.content
-        # Log to console
-        print(f"OpenAI response: {content[:100]}..." if len(content) > 100 else f"OpenAI response: {content}")
-        
-        # Log full request and response to file
+
+        full_response_content = ""
+        for chunk in stream:
+            content_chunk = chunk.choices[0].delta.content
+            if content_chunk is not None:
+                full_response_content += content_chunk
+                emitter.response_chunk_received.emit(content_chunk) # Emit chunk
+
+        emitter.response_finished.emit() # Emit finish signal
+
+        # Log full request and response to file AFTER stream completes
         with open('openai_logs.txt', 'a', encoding='utf-8') as f:
             f.write(f"\n\n=== {datetime.datetime.now().isoformat()} ===\n")
             f.write(f"Request text:\n{text}\n\n")
-            f.write(f"Response:\n{content}\n")
+            f.write(f"Response:\n{full_response_content}\n")
 
-        # Log additional response information
-        print(f"Model used: {response.model}")
-        print(f"Completion tokens: {response.usage.completion_tokens}")
-        print(f"Prompt tokens: {response.usage.prompt_tokens}")
-        print(f"Total tokens: {response.usage.total_tokens}")
+        print(f"Full OpenAI response logged. Length: {len(full_response_content)}")
+        # Note: Usage info is not typically available directly with streams in the same way.
+        # If needed, you might need to estimate or handle it differently.
 
-        return content
     except Exception as e:
         error_message = f"Error: {str(e)}"
         print(f"OpenAI API error: {error_message}")
-        return error_message
+        # Emit the error message as a chunk to display it
+        emitter.response_chunk_received.emit(error_message)
+        emitter.response_finished.emit() # Still signal finish
 
-def process_screen_callback():
-    print("Hotkey Ctrl+Alt+R pressed!")
-    text = capture_screen()
-    print(f"Captured text from screen: {text[:100]}..." if len(text) > 100 else f"Captured text from screen: {text}")
-    response = get_ai_response(text)
-    label.setText(response)
-    # Adjust window size based on content
+# Slot to handle incoming response chunks
+is_first_chunk = True
+def update_label_chunk(chunk):
+    global is_first_chunk
+    if is_first_chunk:
+        label.setText("")     # Clear "Thinking..."
+        is_first_chunk = False
+
+    current_text = label.text()
+    label.setText(current_text + chunk)
+    # Adjust window size dynamically as text is added
     widget.adjustSize()
-    # Ensure window stays within screen bounds
+    # Ensure window stays within screen bounds and centered
     screen = app.primaryScreen().geometry()
-    max_height = screen.height() - 60  # Leave some margin from top and bottom
+    max_height = screen.height() - 60
     if widget.height() > max_height:
         widget.setFixedHeight(max_height)
-    # Recenter the window
     x = (screen.width() - widget.width()) // 2
     y = 30
     widget.move(x, y)
+
+# Slot to handle response finished (optional actions)
+def handle_response_finished():
+    print("Streaming finished.")
+    # Final adjustments or logging if needed
+
+def process_screen_callback():
+    global is_first_chunk
+    print("Hotkey Ctrl+Alt+R pressed!")
+
+    # Reset window size and position, show "Thinking..."
+    is_first_chunk = True # Reset flag for new request
+    label.setText("Thinking...")
+    widget.adjustSize() # Adjust size for "Thinking..." text initially
+    screen = app.primaryScreen().geometry()
+    x = (screen.width() - widget.width()) // 2
+    y = 30
+    widget.move(x, y)
+
+    # Perform OCR and get AI response (runs in background implicitly due to network I/O)
+    # Consider running OCR in a separate thread if it's blocking
+    print("Performing screen capture and OCR...") # Debug print
+    text = capture_screen()
+    print(f"Captured text from screen: {text[:100]}..." if len(text) > 100 else f"Captured text from screen: {text}")
+    print("Calling get_ai_response...") # Debug print
+    get_ai_response(text) # This now emits signals instead of returning directly
 
 # This function is called by the hotkey thread
 def trigger_quit_from_hotkey():
@@ -160,6 +198,8 @@ def perform_quit():
 
 # Connect the signal to the slot
 emitter.quit_signal.connect(perform_quit)
+emitter.response_chunk_received.connect(update_label_chunk) # Connect chunk signal
+emitter.response_finished.connect(handle_response_finished) # Connect finish signal
 
 # Debug logging for all key presses using pynput - REMOVED
 # def on_press_debug(key):
