@@ -7,16 +7,17 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from PIL import ImageGrab
 
-import ocr # ADDED: Import the new OCR module
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy
-from PyQt6.QtCore import Qt, QObject, pyqtSignal, QThread, pyqtSlot
+import ocr
+# Changed: Import from PySide6 instead of PyQt6
+from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy
+from PySide6.QtCore import Qt, QObject, Signal, QThread, Slot # Changed: pyqtSignal to Signal, pyqtSlot to Slot
 from global_hotkeys import *
 
 # Load environment variables
 load_dotenv()
 
 # --- Display Selected OCR Engine ---
-print(f"Using OCR Engine: {ocr.OCR_ENGINE.upper()}") # Get engine from the ocr module
+print(f"Using OCR Engine: {ocr.OCR_ENGINE.upper()}")
 # ---
 
 # Configure OpenAI
@@ -30,8 +31,6 @@ SMARTER_MODEL = os.getenv("SMARTER_MODEL", "gpt-4")
 CAPTURE_HOTKEY = os.getenv("CAPTURE_HOTKEY", "Ctrl+Alt+R")
 QUIT_HOTKEY = os.getenv("QUIT_HOTKEY", "Ctrl+Alt+Q")
 RESET_HOTKEY = os.getenv("RESET_HOTKEY", "Win+Alt+R")
-
-# REMOVED: EasyOCR Reader initialization (now handled in ocr.py)
 
 def parse_hotkey(hotkey_str):
     """Parse a hotkey string like 'Ctrl+Alt+R' into a list of modifiers and key."""
@@ -80,18 +79,20 @@ else:
 
 # --- Signal Emitter ---
 class SignalEmitter(QObject):
-    quit_signal = pyqtSignal()
-    response_chunk_received = pyqtSignal(str)
-    response_finished = pyqtSignal()
-    error_occurred = pyqtSignal(str) # Signal for errors
-    processing_started = pyqtSignal() # Signal to show "Thinking..."
-    extraction_complete = pyqtSignal(dict) # Signal when extraction finishes
+    # Changed: pyqtSignal to Signal
+    quit_signal = Signal()
+    response_chunk_received = Signal(str)
+    response_finished = Signal()
+    error_occurred = Signal(str)
+    processing_started = Signal()
+    extraction_complete = Signal(dict)
 
 emitter = SignalEmitter()
 
 # --- Worker Thread for AI Calls ---
 class AIWorker(QObject):
-    @pyqtSlot(str)
+    # Changed: pyqtSlot to Slot
+    @Slot(str)
     def run_extraction(self, text):
         """Runs the first AI step (extraction)"""
         try:
@@ -121,7 +122,7 @@ class AIWorker(QObject):
                     {"role": "system", "content": extraction_prompt},
                     {"role": "user", "content": text}
                 ],
-                response_format={"type": "json_object"} # Request JSON output
+                response_format={"type": "json_object"}
             )
 
             response_content = response.choices[0].message.content
@@ -156,18 +157,19 @@ class AIWorker(QObject):
             emitter.error_occurred.emit(error_message)
 
 
-    @pyqtSlot(dict)
+    # Changed: pyqtSlot to Slot
+    @Slot(dict)
     def run_answering(self, extracted_data):
         """Runs the second AI step (answering) if a question was found."""
         if not extracted_data.get("question_found"):
             print("Step 1 result: No question found. Skipping Step 2.")
-            emitter.response_chunk_received.emit("Didn't find any questions.") # Show message in UI
-            emitter.response_finished.emit() # Signal completion
+            emitter.response_chunk_received.emit("Didn't find any questions.")
+            emitter.response_finished.emit()
             return
         if not extracted_data.get("question") or not extracted_data.get("choices"):
              print("Step 1 result: Question found but question/choices missing. Skipping Step 2.")
-             emitter.response_chunk_received.emit("Found question but couldn't extract details.") # Show message in UI
-             emitter.response_finished.emit() # Signal completion
+             emitter.response_chunk_received.emit("Found question but couldn't extract details.")
+             emitter.response_finished.emit()
              return
 
         question = extracted_data["question"]
@@ -191,7 +193,7 @@ class AIWorker(QObject):
             {chr(10).join(f'- {choice}' for choice in choices)}
 
             Your Answer (Correct Choice + Brief Explanation):
-            """ # Using chr(10) for newline
+            """
 
             context_content = f"Context from extraction:\nQuestion: {question}\nChoices:\n" + "\n".join(f"- {choice}" for choice in choices)
 
@@ -230,11 +232,13 @@ class AIWorker(QObject):
             emitter.response_chunk_received.emit(error_message)
             emitter.response_finished.emit()
 
-# --- PyQt UI Setup ---
+# --- PySide6 UI Setup ---
+# Changed: Using QApplication from PySide6
 app = QApplication(sys.argv)
+# Changed: Using QWidget from PySide6
 widget = QWidget()
 
-# Window Styling
+# Window Styling (Qt enums are generally the same)
 widget.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool | Qt.WindowType.WindowTransparentForInput)
 widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -253,12 +257,15 @@ widget.setStyleSheet("""
     }
 """)
 
+# Changed: Using QLabel from PySide6
 label = QLabel("Press " + CAPTURE_HOTKEY + " to capture screen and get AI response\nPress " + QUIT_HOTKEY + " to quit")
 label.setWordWrap(True)
 label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
 label.setMinimumWidth(600)
+# Changed: Using QSizePolicy from PySide6
 label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
+# Changed: Using QVBoxLayout from PySide6
 layout = QVBoxLayout()
 layout.setContentsMargins(15, 15, 15, 15)
 layout.addWidget(label)
@@ -327,7 +334,8 @@ is_processing = False # Flag to prevent concurrent processing
 is_first_chunk = True # Flag for clearing label on first chunk of Step 2
 
 # --- UI Update Slots ---
-@pyqtSlot(str)
+# Changed: pyqtSlot to Slot
+@Slot(str)
 def update_label_chunk(chunk):
     global is_first_chunk
     if is_first_chunk:
@@ -338,14 +346,16 @@ def update_label_chunk(chunk):
     label.setText(current_text + chunk)
     position_widget()
 
-@pyqtSlot()
+# Changed: pyqtSlot to Slot
+@Slot()
 def handle_response_finished():
     global is_processing
     print("Processing finished.")
     is_processing = False
     position_widget()
 
-@pyqtSlot(str)
+# Changed: pyqtSlot to Slot
+@Slot(str)
 def handle_error(error_message):
     global is_processing
     print(f"Displaying error: {error_message}")
@@ -353,7 +363,8 @@ def handle_error(error_message):
     is_processing = False
     position_widget()
 
-@pyqtSlot()
+# Changed: pyqtSlot to Slot
+@Slot()
 def show_thinking():
     global is_first_chunk
     is_first_chunk = True
@@ -372,7 +383,7 @@ def process_screen_callback():
     emitter.processing_started.emit()
 
     # Perform screen capture and OCR
-    text = capture_screen() # This now calls the refactored function using ocr.py
+    text = capture_screen()
 
     if text:
         # Move AI processing to the worker thread
@@ -385,7 +396,8 @@ def trigger_quit_from_hotkey():
     print("Quit Hotkey pressed!")
     emitter.quit_signal.emit()
 
-@pyqtSlot()
+# Changed: pyqtSlot to Slot
+@Slot()
 def perform_quit():
     print("Quit signal received. Stopping listeners and quitting...")
     try:
@@ -407,6 +419,7 @@ def reset_program():
     position_widget()
 
 # --- Signal/Slot Connections ---
+# Connect using .connect() as before
 emitter.processing_started.connect(show_thinking)
 emitter.response_chunk_received.connect(update_label_chunk)
 emitter.response_finished.connect(handle_response_finished)
@@ -414,6 +427,7 @@ emitter.error_occurred.connect(handle_error)
 emitter.quit_signal.connect(perform_quit)
 
 # --- Setup Worker Thread ---
+# Changed: Using QThread from PySide6
 thread = QThread()
 worker = AIWorker()
 worker.moveToThread(thread)
@@ -424,6 +438,7 @@ thread.started.connect(lambda: print("Worker thread started."))
 thread.finished.connect(lambda: print("Worker thread finished."))
 emitter.quit_signal.connect(thread.quit)
 emitter.quit_signal.connect(worker.deleteLater)
+# Use wait() for proper thread termination before app exit
 emitter.quit_signal.connect(thread.wait)
 
 thread.start() # Start the thread event loop
@@ -457,15 +472,18 @@ else:
     print("No valid hotkeys registered. Exiting.")
     sys.exit(1)
 
+
 # --- Show Window and Run App ---
 widget.show()
 try:
+    # winId() method is the same
     hwnd = widget.winId()
     ctypes.windll.user32.SetWindowDisplayAffinity(int(hwnd), 0x00000011)
     print("Window display affinity set to exclude from capture.")
 except Exception as e:
     print(f"Could not set window display affinity (might be normal on non-Windows): {e}")
 
+# Changed: Using app.exec() which is the standard in PySide6 (and PyQt6)
 exit_code = app.exec()
 print("Application exiting.")
 if registered_hotkeys:
