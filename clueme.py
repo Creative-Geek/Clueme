@@ -94,6 +94,7 @@ class AIWorker(QObject):
             Only output the JSON object. Do not include any other text or explanations.
             Focus on identifying a clear question stem and distinct answer options (often labeled A, B, C, D or 1, 2, 3, 4).
             If no clear MCQ is present, set "question_found" to false.
+            If there are multiple questions present, only return the first one.
             """
 
             response = client.chat.completions.create(
@@ -221,7 +222,7 @@ widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 widget.setAttribute(Qt.WidgetAttribute.WA_NoMousePropagation)
 widget.setMinimumSize(650, 100)
-widget.setWindowOpacity(0.8) # Slightly less transparent
+widget.setWindowOpacity(0.6) # Slightly less transparent
 widget.setStyleSheet("""
     QWidget {
         background-color: black;
