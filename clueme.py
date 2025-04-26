@@ -10,7 +10,6 @@ from PIL import ImageGrab
 import ocr # ADDED: Import the new OCR module
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, QThread, pyqtSlot
-from PyQt6.QtGui import QColor
 from global_hotkeys import *
 
 # Load environment variables
@@ -288,6 +287,18 @@ def capture_screen():
 
         # Call the perform_ocr function from the ocr module
         text = ocr.perform_ocr(screenshot_pil)
+
+        if text is None and ocr.OCR_ENGINE.lower() != "pytesseract":
+            print("Primary OCR failed. Attempting fallback to pytesseract...")
+            # Temporarily set engine to pytesseract and try again
+            prev_engine = ocr.OCR_ENGINE
+            ocr.OCR_ENGINE = "pytesseract"
+            text = ocr.perform_ocr(screenshot_pil)
+            ocr.OCR_ENGINE = prev_engine
+            if text is not None:
+                print("Fallback to pytesseract successful.")
+            else:
+                print("Fallback to pytesseract failed.")
 
         if text is None:
             print("OCR failed.") # Specific errors logged in ocr.py

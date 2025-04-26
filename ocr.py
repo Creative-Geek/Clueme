@@ -256,6 +256,9 @@ def _ocr_with_gemini(image_pil: Image.Image) -> str | None:
         text = response.choices[0].message.content
         end_time = time.time()
         print(f"Gemini OCR completed in {end_time - start_time:.2f} seconds.")
+        if text is None:
+            print("Warning: Gemini response contained no text.")
+            return None
         # Clean up potential markdown/code blocks if the model adds them
         text = text.strip().removeprefix("```").removesuffix("```").strip()
         text = text.strip().removeprefix("```text").removesuffix("```").strip()
