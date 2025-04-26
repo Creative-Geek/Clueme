@@ -1,5 +1,7 @@
 openai_logs.txt
 .env
+.env_bak
 __pycache__/*
 gemini_ocr_input.webp
 __pycache__/ocr.cpython-313.pyc
+run_clueme.bat
