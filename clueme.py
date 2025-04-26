@@ -6,10 +6,17 @@ import openai
 from PIL import ImageGrab
 import pytesseract
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout
-from PyQt6.QtCore import Qt, QPoint, QTimer
+from PyQt6.QtCore import Qt, QPoint, QTimer, QObject, pyqtSignal
 from PyQt6.QtGui import QColor
-from pynput import keyboard
+# from pynput import keyboard # No longer needed for debugging
 from global_hotkeys import *
+pytesseract.pytesseract.tesseract_cmd=r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+# --- Custom Signal Emitter ---
+class SignalEmitter(QObject):
+    quit_signal = pyqtSignal()
+
+emitter = SignalEmitter()
+# -----------------------------
 
 # Load environment variables
 load_dotenv()
@@ -76,26 +83,39 @@ def process_screen_callback():
     response = get_ai_response(text)
     label.setText(response)
 
-def quit_app_callback():
-    print("Hotkey Ctrl+Alt+Q pressed!")
-    app.quit()
+# This function is called by the hotkey thread
+def trigger_quit_from_hotkey():
+    print("Hotkey Ctrl+Alt+Q pressed! Emitting signal...")
+    emitter.quit_signal.emit() # Emit the signal
 
-# Debug logging for all key presses using pynput
-def on_press_debug(key):
+# This slot runs in the main thread
+def perform_quit():
+    print("Quit signal received in main thread. Stopping listeners and quitting...")
     try:
-        print(f"Key pressed: {key.char}")
-    except AttributeError:
-        print(f"Special key pressed: {key}")
+        stop_checking_hotkeys()
+    except Exception as e:
+        print(f"Error stopping global_hotkeys: {e}")
+    QApplication.quit()
 
-# Start pynput listener for debugging
-debug_listener = keyboard.Listener(on_press=on_press_debug)
-debug_listener.start()
+# Connect the signal to the slot
+emitter.quit_signal.connect(perform_quit)
+
+# Debug logging for all key presses using pynput - REMOVED
+# def on_press_debug(key):
+#     try:
+#         print(f"Key pressed: {key.char}")
+#     except AttributeError:
+#         print(f"Special key pressed: {key}")
+
+# Start pynput listener for debugging - REMOVED
+# debug_listener = keyboard.Listener(on_press=on_press_debug)
+# debug_listener.start()
 
 # Define and register global hotkeys
 hotkeys = [
     # Format: [ ["modifier", "key"], key_down_callback, key_up_callback (optional) ], ...
     [ ["control", "alt", "r"], process_screen_callback, None ],
-    [ ["control", "alt", "q"], quit_app_callback, None ]
+    [ ["control", "alt", "q"], trigger_quit_from_hotkey, None ]
 ]
 register_hotkeys(hotkeys)
 
