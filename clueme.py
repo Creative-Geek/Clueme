@@ -12,7 +12,7 @@ import ocr
 # Import from PySide6 instead of PyQt6
 from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy
 from PySide6.QtCore import Qt, QObject, Signal, QThread, Slot
-from global_hotkeys import *
+from global_hotkeys import register_hotkeys, start_checking_hotkeys, stop_checking_hotkeys
 
 def is_frozen():
     """Check if running as a compiled executable (Nuitka)"""
