@@ -1,24 +1,24 @@
 import sys
 import ctypes
-import os,datetime
+import os, datetime
 from dotenv import load_dotenv
 from openai import OpenAI
 from PIL import ImageGrab
 import pytesseract
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy
-from PyQt6.QtCore import Qt, QPoint, QTimer, QObject, pyqtSignal
+from PyQt6.QtCore import Qt, QObject, pyqtSignal
 from PyQt6.QtGui import QColor
-# from pynput import keyboard # No longer needed for debugging
 from global_hotkeys import *
+
 pytesseract.pytesseract.tesseract_cmd=r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-# --- Custom Signal Emitter ---
+
 class SignalEmitter(QObject):
     quit_signal = pyqtSignal()
     response_chunk_received = pyqtSignal(str) # Signal for streaming chunks
     response_finished = pyqtSignal()         # Signal for stream completion
 
 emitter = SignalEmitter()
-# -----------------------------
+
 
 # Load environment variables
 load_dotenv()
@@ -31,6 +31,7 @@ MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 # Configure hotkeys
 CAPTURE_HOTKEY = os.getenv("CAPTURE_HOTKEY", "Ctrl+Alt+R")
 QUIT_HOTKEY = os.getenv("QUIT_HOTKEY", "Ctrl+Alt+Q")
+RESET_HOTKEY = os.getenv("RESET_HOTKEY", "Win+Alt+R")
 
 def parse_hotkey(hotkey_str):
     """Parse a hotkey string like 'Ctrl+Alt+R' into a list of modifiers and key."""
@@ -61,6 +62,7 @@ print(f"OpenAI Base URL: {base_url if base_url else 'Default (https://api.openai
 print(f"OpenAI Model: {MODEL}")
 print(f"Capture Hotkey: {CAPTURE_HOTKEY}")
 print(f"Quit Hotkey: {QUIT_HOTKEY}")
+print(f"Reset Hotkey: {RESET_HOTKEY}")
 
 # Initialize the client
 client = OpenAI(
@@ -97,7 +99,7 @@ widget.setStyleSheet("""
 """)
 
 # Add a label with white text and word wrapping
-label = QLabel("Press Ctrl+Alt+R to capture screen and get AI response\nPress Ctrl+Alt+Q to quit")
+label = QLabel("Press " + CAPTURE_HOTKEY + " to capture screen and get AI response\nPress " + QUIT_HOTKEY + " to quit")
 label.setWordWrap(True)
 label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
 label.setMinimumWidth(600)  # Ensure minimum width for text wrapping
@@ -192,7 +194,7 @@ def handle_response_finished():
 
 def process_screen_callback():
     global is_first_chunk
-    print("Hotkey Ctrl+Alt+R pressed!")
+    print("Generation Hotkey pressed!")
 
     # Reset window size and position, show "Thinking..."
     is_first_chunk = True # Reset flag for new request
@@ -213,7 +215,7 @@ def process_screen_callback():
 
 # This function is called by the hotkey thread
 def trigger_quit_from_hotkey():
-    print("Hotkey Ctrl+Alt+Q pressed! Emitting signal...")
+    print("Quit Hotkey pressed!")
     emitter.quit_signal.emit() # Emit the signal
 
 # This slot runs in the main thread
@@ -230,22 +232,23 @@ emitter.quit_signal.connect(perform_quit)
 emitter.response_chunk_received.connect(update_label_chunk) # Connect chunk signal
 emitter.response_finished.connect(handle_response_finished) # Connect finish signal
 
-# Debug logging for all key presses using pynput - REMOVED
-# def on_press_debug(key):
-#     try:
-#         print(f"Key pressed: {key.char}")
-#     except AttributeError:
-#         print(f"Special key pressed: {key}")
-
-# Start pynput listener for debugging - REMOVED
-# debug_listener = keyboard.Listener(on_press=on_press_debug)
-# debug_listener.start()
+def reset_program():
+    global is_first_chunk
+    print("Reset Hotkey pressed!")
+    is_first_chunk = True
+    label.setText("Press " + CAPTURE_HOTKEY + " to capture screen and get AI response\nPress " + QUIT_HOTKEY + " to quit")
+    widget.adjustSize()
+    screen = app.primaryScreen().geometry()
+    x = (screen.width() - widget.width()) // 2
+    y = 30
+    widget.move(x, y)
 
 # Define and register global hotkeys
 hotkeys = [
     # Format: [ ["modifier", "key"], key_down_callback, key_up_callback (optional) ], ...
     [ parse_hotkey(CAPTURE_HOTKEY)[0] + [parse_hotkey(CAPTURE_HOTKEY)[1]], process_screen_callback, None ],
-    [ parse_hotkey(QUIT_HOTKEY)[0] + [parse_hotkey(QUIT_HOTKEY)[1]], trigger_quit_from_hotkey, None ]
+    [ parse_hotkey(QUIT_HOTKEY)[0] + [parse_hotkey(QUIT_HOTKEY)[1]], trigger_quit_from_hotkey, None ],
+    [ parse_hotkey(RESET_HOTKEY)[0] + [parse_hotkey(RESET_HOTKEY)[1]], reset_program, None ]
 ]
 register_hotkeys(hotkeys)
 
@@ -254,6 +257,5 @@ start_checking_hotkeys()
 
 widget.show()
 hwnd = widget.winId()
-hwnd_int = int(hwnd)  # Convert sip.voidptr to an integer
-ctypes.windll.user32.SetWindowDisplayAffinity(hwnd_int, 17)
+ctypes.windll.user32.SetWindowDisplayAffinity(int(hwnd), 17)
 sys.exit(app.exec())
