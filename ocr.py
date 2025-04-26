@@ -157,9 +157,10 @@ def _initialize_gemini():
     return _gemini_initialized
 
 
-def _pil_to_base64(image_pil: Image.Image, format="PNG") -> str:
+def _pil_to_base64(image_pil: Image.Image, format="WEBP") -> str: # Changed default format
     """Converts a PIL image to a Base64 encoded string."""
     buffered = io.BytesIO()
+    # Use the specified format (now defaults to WEBP)
     image_pil.save(buffered, format=format)
     img_byte = buffered.getvalue()
     img_base64 = base64.b64encode(img_byte).decode('utf-8')
@@ -216,9 +217,19 @@ def _ocr_with_gemini(image_pil: Image.Image) -> str | None:
 
     try:
         start_time = time.time()
-        print("Encoding image for Gemini...")
-        base64_image = _pil_to_base64(image_pil, format="PNG") # Use PNG or JPEG
-        image_url = f"data:image/png;base64,{base64_image}"
+
+        # --- Save image to disk for review ---
+        save_path = "gemini_ocr_input.webp"
+        try:
+            image_pil.save(save_path, format="WEBP")
+            print(f"Saved Gemini input image for review: {save_path}")
+        except Exception as save_e:
+            print(f"Warning: Could not save review image to {save_path}: {save_e}")
+        # --- End save image ---
+
+        print("Encoding image for Gemini (WEBP)...")
+        base64_image = _pil_to_base64(image_pil, format="WEBP") # Explicitly use WEBP
+        image_url = f"data:image/webp;base64,{base64_image}" # Update data URI
 
         ocr_prompt = "Perform OCR on the following image. Extract all text exactly as it appears, preserving line breaks where possible. Output only the extracted text."
 
