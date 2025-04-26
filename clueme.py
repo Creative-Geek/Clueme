@@ -1,35 +1,38 @@
+# main_app.py
 import sys
 import ctypes
 import os, datetime
-import json # Import json library
+import json
 from dotenv import load_dotenv
 from openai import OpenAI
 from PIL import ImageGrab
-import pytesseract
+
+import ocr # ADDED: Import the new OCR module
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy
-from PyQt6.QtCore import Qt, QObject, pyqtSignal, QThread, pyqtSlot # Import QThread, pyqtSlot
+from PyQt6.QtCore import Qt, QObject, pyqtSignal, QThread, pyqtSlot
 from PyQt6.QtGui import QColor
 from global_hotkeys import *
-
-# --- Configuration ---
-pytesseract.pytesseract.tesseract_cmd=r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 # Load environment variables
 load_dotenv()
 
+# --- Display Selected OCR Engine ---
+print(f"Using OCR Engine: {ocr.OCR_ENGINE.upper()}") # Get engine from the ocr module
+# ---
+
 # Configure OpenAI
 API_KEY = os.getenv("OPENAI_API_KEY")
-BASE_URL = os.getenv("OPENAI_API_BASE")  # base_url replaces api_base
-SMARTER_MODEL_API_BASE = os.getenv("SMARTER_MODEL_API_BASE")  # New: separate API endpoint for smarter model
-# --- New: Model Selection ---
-CHEAPER_MODEL = os.getenv("CHEAPER_MODEL", "gpt-3.5-turbo") # Default to 3.5-turbo for extraction
-SMARTER_MODEL = os.getenv("SMARTER_MODEL", "gpt-4") # Default to gpt-4 for answering (or adjust as needed)
-# ---
+BASE_URL = os.getenv("OPENAI_API_BASE")
+SMARTER_MODEL_API_BASE = os.getenv("SMARTER_MODEL_API_BASE")
+CHEAPER_MODEL = os.getenv("CHEAPER_MODEL", "gpt-3.5-turbo")
+SMARTER_MODEL = os.getenv("SMARTER_MODEL", "gpt-4")
 
 # Configure hotkeys
 CAPTURE_HOTKEY = os.getenv("CAPTURE_HOTKEY", "Ctrl+Alt+R")
 QUIT_HOTKEY = os.getenv("QUIT_HOTKEY", "Ctrl+Alt+Q")
 RESET_HOTKEY = os.getenv("RESET_HOTKEY", "Win+Alt+R")
+
+# REMOVED: EasyOCR Reader initialization (now handled in ocr.py)
 
 def parse_hotkey(hotkey_str):
     """Parse a hotkey string like 'Ctrl+Alt+R' into a list of modifiers and key."""
@@ -74,7 +77,6 @@ if SMARTER_MODEL_API_BASE and SMARTER_MODEL_API_BASE != BASE_URL:
         base_url=SMARTER_MODEL_API_BASE
     )
 else:
-    # Use the same client for both models
     smarter_client = client
 
 # --- Signal Emitter ---
@@ -192,10 +194,8 @@ class AIWorker(QObject):
             Your Answer (Correct Choice + Brief Explanation):
             """ # Using chr(10) for newline
 
-            # New: include last question and choices as context for smart model
             context_content = f"Context from extraction:\nQuestion: {question}\nChoices:\n" + "\n".join(f"- {choice}" for choice in choices)
 
-            # Use the smarter_client for the smarter model
             stream = smarter_client.chat.completions.create(
                 model=SMARTER_MODEL,
                 messages=[
@@ -204,7 +204,7 @@ class AIWorker(QObject):
                     {"role": "user", "content": answering_prompt}
                 ],
                 stream=True,
-                max_tokens=200 # Add a max_tokens limit to help enforce character limit
+                max_tokens=200
             )
 
             full_response_content = ""
@@ -212,11 +212,10 @@ class AIWorker(QObject):
                 content_chunk = chunk.choices[0].delta.content
                 if content_chunk is not None:
                     full_response_content += content_chunk
-                    emitter.response_chunk_received.emit(content_chunk) # Emit chunk
+                    emitter.response_chunk_received.emit(content_chunk)
 
-            emitter.response_finished.emit() # Emit finish signal
+            emitter.response_finished.emit()
 
-            # Log full request and response to file AFTER stream completes
             with open('openai_logs.txt', 'a', encoding='utf-8') as f:
                 f.write(f"\n\n=== {datetime.datetime.now().isoformat()} ===\n")
                 f.write(f"Step 1 Extracted Question:\n{question}\n")
@@ -229,10 +228,8 @@ class AIWorker(QObject):
         except Exception as e:
             error_message = f"Error during Step 2 (Answering): {str(e)}"
             print(error_message)
-            # Emit the error message as a chunk to display it
-            emitter.response_chunk_received.emit(error_message) # Show error in UI
-            emitter.response_finished.emit() # Still signal finish
-
+            emitter.response_chunk_received.emit(error_message)
+            emitter.response_finished.emit()
 
 # --- PyQt UI Setup ---
 app = QApplication(sys.argv)
@@ -244,7 +241,7 @@ widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 widget.setAttribute(Qt.WidgetAttribute.WA_NoMousePropagation)
 widget.setMinimumSize(650, 100)
-widget.setWindowOpacity(0.6) # Slightly less transparent
+widget.setWindowOpacity(0.6)
 widget.setStyleSheet("""
     QWidget {
         background-color: black;
@@ -264,19 +261,17 @@ label.setMinimumWidth(600)
 label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
 layout = QVBoxLayout()
-layout.setContentsMargins(15, 15, 15, 15) # Adjusted margins
+layout.setContentsMargins(15, 15, 15, 15)
 layout.addWidget(label)
 widget.setLayout(layout)
 
 # --- UI Positioning ---
 def position_widget():
     screen = app.primaryScreen().geometry()
-    # Adjust size *before* calculating position
     widget.adjustSize()
-     # Limit max height to prevent filling the screen
-    max_height = screen.height() * 0.6 # Use 60% of screen height as max
+    max_height = screen.height() * 0.6
     if widget.height() > max_height:
-        widget.setFixedHeight(int(max_height)) # Set fixed height if too tall
+        widget.setFixedHeight(int(max_height))
 
     x = (screen.width() - widget.width()) // 2
     y = 30
@@ -286,22 +281,33 @@ position_widget() # Initial position
 
 # --- Screen Capture ---
 def capture_screen():
+    """Captures the screen and performs OCR using the configured engine."""
     try:
-        screenshot = ImageGrab.grab()
-        text = pytesseract.image_to_string(screenshot)
+        screenshot_pil = ImageGrab.grab()
+        print("Screenshot grabbed. Performing OCR...")
+
+        # Call the perform_ocr function from the ocr module
+        text = ocr.perform_ocr(screenshot_pil)
+
+        if text is None:
+            print("OCR failed.") # Specific errors logged in ocr.py
+            emitter.error_occurred.emit(f"OCR process failed (Engine: {ocr.OCR_ENGINE.upper()}). Check logs.")
+            return None
+
         print("OCR successful.")
 
         # Log the captured text
         print(f"Captured text (first 200 chars): {text[:200]}")
         # Log full OCR text to file
         with open('openai_logs.txt', 'a', encoding='utf-8') as f:
-            f.write(f"\n\n=== OCR TEXT {datetime.datetime.now().isoformat()} ===\n")
+            f.write(f"\n\n=== OCR TEXT ({ocr.OCR_ENGINE.upper()}) {datetime.datetime.now().isoformat()} ===\n")
             f.write(text)
             f.write("\n=== END OCR TEXT ===\n")
 
         return text
     except Exception as e:
-        print(f"Error during screen capture or OCR: {e}")
+        # Catch errors during ImageGrab itself or other unexpected issues here
+        print(f"Error during screen capture phase: {e}")
         emitter.error_occurred.emit(f"Error capturing screen: {e}")
         return None
 
@@ -314,32 +320,32 @@ is_first_chunk = True # Flag for clearing label on first chunk of Step 2
 def update_label_chunk(chunk):
     global is_first_chunk
     if is_first_chunk:
-        label.setText("")     # Clear "Thinking..." or previous message
+        label.setText("")
         is_first_chunk = False
 
     current_text = label.text()
     label.setText(current_text + chunk)
-    position_widget() # Reposition after text update
+    position_widget()
 
 @pyqtSlot()
 def handle_response_finished():
     global is_processing
     print("Processing finished.")
-    is_processing = False # Allow new requests
-    position_widget() # Final position adjustment
+    is_processing = False
+    position_widget()
 
 @pyqtSlot(str)
 def handle_error(error_message):
     global is_processing
     print(f"Displaying error: {error_message}")
     label.setText(f"Error:\n{error_message}")
-    is_processing = False # Allow new requests
+    is_processing = False
     position_widget()
 
 @pyqtSlot()
 def show_thinking():
     global is_first_chunk
-    is_first_chunk = True # Reset for the next potential stream
+    is_first_chunk = True
     label.setText("Thinking...")
     position_widget()
 
@@ -352,18 +358,17 @@ def process_screen_callback():
 
     print("Capture Hotkey pressed!")
     is_processing = True
-    emitter.processing_started.emit() # Show "Thinking..."
+    emitter.processing_started.emit()
 
-    # Perform OCR in the main thread (usually fast enough)
-    text = capture_screen()
+    # Perform screen capture and OCR
+    text = capture_screen() # This now calls the refactored function using ocr.py
+
     if text:
         # Move AI processing to the worker thread
-        worker.run_extraction(text) # Call worker method directly
+        worker.run_extraction(text)
     else:
-        # Handle OCR failure immediately
-         is_processing = False # Reset processing flag
-         # Error signal already emitted by capture_screen() if it failed
-
+        # Handle OCR failure immediately (error signal already emitted)
+        is_processing = False # Reset processing flag
 
 def trigger_quit_from_hotkey():
     print("Quit Hotkey pressed!")
@@ -382,7 +387,6 @@ def reset_program():
     global is_processing, is_first_chunk
     if is_processing:
         print("Cannot reset while processing.")
-        # Optionally, you could try to interrupt the worker thread here, but it's complex.
         return
 
     print("Reset Hotkey pressed!")
@@ -390,7 +394,6 @@ def reset_program():
     is_processing = False
     label.setText("Press " + CAPTURE_HOTKEY + " to capture screen and get AI response\nPress " + QUIT_HOTKEY + " to quit")
     position_widget()
-
 
 # --- Signal/Slot Connections ---
 emitter.processing_started.connect(show_thinking)
@@ -404,24 +407,18 @@ thread = QThread()
 worker = AIWorker()
 worker.moveToThread(thread)
 
-# Connect the signal carrying the OCR text to the worker's slot
-# Instead of connecting a signal, we will call the worker's slot directly from process_screen_callback
-# Connect the worker's completion signal (extraction_complete) to its next step (run_answering)
 emitter.extraction_complete.connect(worker.run_answering)
 
-# Connect thread management signals
 thread.started.connect(lambda: print("Worker thread started."))
 thread.finished.connect(lambda: print("Worker thread finished."))
-emitter.quit_signal.connect(thread.quit) # Ensure thread quits with app
-emitter.quit_signal.connect(worker.deleteLater) # Schedule worker deletion
-emitter.quit_signal.connect(thread.wait) # Wait for thread to finish before exiting fully
+emitter.quit_signal.connect(thread.quit)
+emitter.quit_signal.connect(worker.deleteLater)
+emitter.quit_signal.connect(thread.wait)
 
 thread.start() # Start the thread event loop
 
-
 # --- Register Hotkeys ---
 hotkeys_bindings = [
-    # Use the parsed hotkey format directly
     { "key": CAPTURE_HOTKEY, "callback": process_screen_callback },
     { "key": QUIT_HOTKEY, "callback": trigger_quit_from_hotkey },
     { "key": RESET_HOTKEY, "callback": reset_program }
@@ -431,7 +428,7 @@ registered_hotkeys = []
 for binding in hotkeys_bindings:
      try:
          parsed = parse_hotkey(binding["key"])
-         hotkey_definition = parsed[0] + [parsed[1]] # Combine modifiers and key
+         hotkey_definition = parsed[0] + [parsed[1]]
          registered_hotkeys.append([hotkey_definition, binding["callback"], None])
          print(f"Registering hotkey: {binding['key']} -> {hotkey_definition}")
      except Exception as e:
@@ -444,26 +441,22 @@ if registered_hotkeys:
         print("Hotkey listener started.")
     except Exception as e:
          print(f"Failed to start hotkey listener: {e}")
-         # Optionally quit if hotkeys are critical
-         # sys.exit(1)
+         # sys.exit(1) # Consider exiting if hotkeys fail
 else:
     print("No valid hotkeys registered. Exiting.")
     sys.exit(1)
 
-
 # --- Show Window and Run App ---
 widget.show()
 try:
-    # Set window affinity to prevent capture (optional, might cause issues on some systems)
     hwnd = widget.winId()
-    ctypes.windll.user32.SetWindowDisplayAffinity(int(hwnd), 0x00000011) # WDA_EXCLUDEFROMCAPTURE
+    ctypes.windll.user32.SetWindowDisplayAffinity(int(hwnd), 0x00000011)
     print("Window display affinity set to exclude from capture.")
 except Exception as e:
     print(f"Could not set window display affinity (might be normal on non-Windows): {e}")
 
 exit_code = app.exec()
 print("Application exiting.")
-# Explicitly stop hotkey listener if it was started
 if registered_hotkeys:
     try:
         print("Stopping hotkey listener...")
