@@ -175,9 +175,13 @@ class AIWorker(QObject):
             Your Answer (Correct Choice + Brief Explanation):
             """ # Using chr(10) for newline
 
+            # New: include last question and choices as context for smart model
+            context_content = f"Context from extraction:\nQuestion: {question}\nChoices:\n" + "\n".join(f"- {choice}" for choice in choices)
+
             stream = client.chat.completions.create(
                 model=SMARTER_MODEL,
                 messages=[
+                    {"role": "system", "content": context_content},
                     {"role": "system", "content": "You are a helpful AI assistant specializing in answering MCQs concisely."},
                     {"role": "user", "content": answering_prompt}
                 ],
