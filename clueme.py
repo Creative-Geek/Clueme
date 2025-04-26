@@ -89,7 +89,7 @@ class AIWorker(QObject):
             {
               "question_found": boolean, // true if an MCQ is found, false otherwise
               "question": "The extracted question text." | null, // null if question_found is false
-              "choices": ["A) Choice A text with number", "B) Choice B text with number", ...] | null // null if question_found is false or choices aren't clear
+              "choices": ["A) Choice A text with its number", "B) Choice B text with its number", ...] | null // null if question_found is false or choices aren't clear
             }
             The text is extracted via OCR so it may contain errors, fix those errors in the output.
             If there is code, include it in the question text.
