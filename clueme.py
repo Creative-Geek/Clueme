@@ -336,6 +336,14 @@ def perform_quit():
         stop_checking_hotkeys()
     except Exception as e:
         print(f"Error stopping global_hotkeys: {e}")
+    
+    # Ensure thread is properly cleaned up
+    if thread.isRunning():
+        print("Waiting for worker thread to finish...")
+        thread.quit()
+        thread.wait()  # Wait for thread to finish
+        print("Worker thread finished.")
+    
     app.quit()
 
 def reset_program():
