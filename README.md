@@ -68,6 +68,12 @@ You can configure the hotkeys in the `.env` file using the following format:
 - Keys: Any single key (e.g., `R`, `Q`, `Enter`)
 - Format: `Modifier1+Modifier2+Key` (e.g., `Ctrl+Alt+R`, `Alt+Enter`)
 
+## PyInstaller Compilation Command
+
+```bash
+pyinstaller --onefile --noconsole --icon=clueme.ico --name=clueme --add-data ".env;." --exclude-module PyQt5 --exclude-module PyQt6 clueme.py
+```
+
 ## Architecture
 
 The application is built with a modular architecture:
