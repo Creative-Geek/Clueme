@@ -2,7 +2,7 @@
 
 <div align="center">
   
-![Clueme Logo](clueme.png)
+<img src="clueme.png" alt="Clueme Logo" width="500px">
 
 </div>
 
