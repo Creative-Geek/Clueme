@@ -1,0 +1,13 @@
+[project]
+name = "clueme"
+version = "0.1.0"
+description = "Invisible AI Assistant for MCQ answering"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "global-hotkeys>=0.1.7",
+    "openai>=1.76.0",
+    "pillow>=11.2.1",
+    "pyside6>=6.9.0",
+    "python-dotenv>=1.1.0",
+]
