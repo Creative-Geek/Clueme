@@ -7,6 +7,7 @@
 </div>
 
 ------
+[![Build and Release](https://github.com/Creative-Geek/Clueme/actions/workflows/release.yml/badge.svg)](https://github.com/Creative-Geek/Clueme/actions/workflows/release.yml)
 
 A Windows application that provides AI assistance through keyboard shortcuts, designed to be invisible to screen recording software.
 
