@@ -22,6 +22,18 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
         
+    - name: Create temporary .env file
+      run: |
+        echo "SOLVING_MODEL_API_KEY=placeholder" > .env
+        echo "SOLVING_MODEL_BASE_URL=https://api.example.com" >> .env
+        echo "SOLVING_MODEL=gpt-4" >> .env
+        echo "OCR_API_KEY=placeholder" >> .env
+        echo "OCR_BASE_URL=https://api.example.com" >> .env
+        echo "OCR_MODEL=gpt-4-vision-preview" >> .env
+        echo "CAPTURE_HOTKEY=Alt+Enter" >> .env
+        echo "QUIT_HOTKEY=Ctrl+Alt+Q" >> .env
+        echo "RESET_HOTKEY=Ctrl+Alt+R" >> .env
+        
     - name: Build executable
       run: |
         pyinstaller --onefile --noconsole --icon=clueme.ico --name=clueme --add-data ".env;." --exclude-module PyQt5 --exclude-module PyQt6 clueme.py
