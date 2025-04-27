@@ -38,16 +38,16 @@ load_env_settings()
 # Engine Setting - Only Gemini supported in this version
 OCR_ENGINE = "gemini"
 
-# Gemini Configuration
-gemini_api_key = os.getenv("GEMINI_API_KEY")
-gemini_base_url = os.getenv("GEMINI_BASE_URL")
-gemini_ocr_model = os.getenv("GEMINI_OCR_MODEL", "gemini-2.5-flash-preview-04-17")
+# OCR Configuration
+OCR_API_KEY = os.getenv("OCR_API_KEY")
+OCR_BASE_URL = os.getenv("OCR_BASE_URL")
+OCR_MODEL = os.getenv("OCR_MODEL", "gemini-2.5-flash-preview-04-17")
 
 # Log configuration
 print(f"Base Directory: {get_base_dir()}")
-print(f"Gemini API Key: {'*' * 4 + gemini_api_key[-4:] if gemini_api_key else 'Not set'}")
-print(f"Gemini Base URL: {gemini_base_url if gemini_base_url else 'Not set'}")
-print(f"Gemini OCR Model: {gemini_ocr_model}")
+print(f"OCR API Key: {'*' * 4 + OCR_API_KEY[-4:] if OCR_API_KEY else 'Not set'}")
+print(f"OCR Base URL: {OCR_BASE_URL if OCR_BASE_URL else 'Not set'}")
+print(f"OCR Model: {OCR_MODEL}")
 
 # Client initialization
 gemini_client = None
@@ -60,15 +60,15 @@ def _initialize_gemini():
     if _gemini_initialized:
         return _gemini_initialized
         
-    if not gemini_api_key or not gemini_base_url:
+    if not OCR_API_KEY or not OCR_BASE_URL:
         print("ERROR: Cannot initialize Gemini client. Missing API Key or Base URL.")
         return False
         
-    print(f"Initializing Gemini client for model {gemini_ocr_model}...")
+    print(f"Initializing Gemini client for model {OCR_MODEL}...")
     try:
         gemini_client = OpenAI(
-            api_key=gemini_api_key,
-            base_url=gemini_base_url,
+            api_key=OCR_API_KEY,
+            base_url=OCR_BASE_URL,
         )
         _gemini_initialized = True
         print("Gemini client initialized.")
@@ -120,9 +120,9 @@ def _ocr_with_gemini(image_pil: Image.Image) -> str | None:
         If there are multiple questions present, only return the first one.
         """
         
-        print(f"Sending request to Gemini model: {gemini_ocr_model}...")
+        print(f"Sending request to Gemini model: {OCR_MODEL}...")
         response = gemini_client.chat.completions.create(
-            model=gemini_ocr_model,
+            model=OCR_MODEL,
             messages=[
                 {
                     "role": "user",
@@ -171,7 +171,7 @@ def perform_ocr(image_pil: Image.Image) -> str | None:
 if __name__ == "__main__":
     print(f"\nTesting OCR module with Gemini Vision API")
     
-    if not gemini_api_key or not gemini_base_url:
+    if not OCR_API_KEY or not OCR_BASE_URL:
         print("Skipping Gemini test due to missing API Key or Base URL in environment.")
     else:
         try:

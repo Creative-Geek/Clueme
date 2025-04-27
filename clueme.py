@@ -46,10 +46,9 @@ load_env_settings()
 print(f"Using OCR Engine: GEMINI")
 
 # Configure OpenAI
-API_KEY = os.getenv("OPENAI_API_KEY")
-BASE_URL = os.getenv("OPENAI_API_BASE")
-SMARTER_MODEL_API_BASE = os.getenv("SMARTER_MODEL_API_BASE")
-SMARTER_MODEL = os.getenv("SMARTER_MODEL", "gpt-4")
+SOLVING_MODEL_API_KEY = os.getenv("SOLVING_MODEL_API_KEY")
+SOLVING_MODEL_BASE_URL = os.getenv("SOLVING_MODEL_BASE_URL")
+SOLVING_MODEL = os.getenv("SOLVING_MODEL", "gpt-4")
 
 # Configure hotkeys
 CAPTURE_HOTKEY = os.getenv("CAPTURE_HOTKEY", "Alt+Enter")
@@ -71,25 +70,23 @@ def parse_hotkey(hotkey_str):
 
 # Log configuration
 print(f"Base Directory: {get_base_dir()}")
-print(f"OpenAI API Key: {'*' * 4 + API_KEY[-4:] if API_KEY else 'Not set'}")
-print(f"OpenAI Base URL (Default): {BASE_URL if BASE_URL else 'Default (https://api.openai.com/v1)'}")
-print(f"Smarter Model API Base: {SMARTER_MODEL_API_BASE if SMARTER_MODEL_API_BASE else 'Same as default'}")
-print(f"Answering Model: {SMARTER_MODEL}")
+print(f"Solving Model API Key: {'*' * 4 + SOLVING_MODEL_API_KEY[-4:] if SOLVING_MODEL_API_KEY else 'Not set'}")
+print(f"Solving Model Base URL: {SOLVING_MODEL_BASE_URL if SOLVING_MODEL_BASE_URL else 'Default (https://api.openai.com/v1)'}")
+print(f"Answering Model: {SOLVING_MODEL}")
 print(f"Capture Hotkey: {CAPTURE_HOTKEY}")
 print(f"Quit Hotkey: {QUIT_HOTKEY}")
 print(f"Reset Hotkey: {RESET_HOTKEY}")
 
 # Initialize the client
-if not API_KEY:
-    print("Error: OPENAI_API_KEY environment variable not set.")
+if not SOLVING_MODEL_API_KEY:
+    print("Error: SOLVING_MODEL_API_KEY environment variable not set.")
     sys.exit(1)
 
 # Create AI processor
 ai_processor = AIProcessor(
-    api_key=API_KEY,
-    base_url=BASE_URL,
-    smarter_model_api_base=SMARTER_MODEL_API_BASE,
-    smarter_model=SMARTER_MODEL
+    api_key=SOLVING_MODEL_API_KEY,
+    base_url=SOLVING_MODEL_BASE_URL,
+    smarter_model=SOLVING_MODEL
 )
 
 # --- Worker Thread for AI Calls ---

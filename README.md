@@ -10,8 +10,8 @@ A Windows application that provides AI assistance through keyboard shortcuts, de
 
 ## Features
 
-- Screen OCR using Gemini Vision
-- AI integration with OpenAI (or compatible endpoints)
+- Screen OCR using Gemini Vision (because tesseract and EasyOCR are not good enough)
+- AI integration with OpenAI (or the many free compatible endpoints)
 - Global keyboard shortcuts
 - Stealth mode (invisible to screen recording)
 - Modular architecture with separate AI processing component
@@ -23,12 +23,19 @@ A Windows application that provides AI assistance through keyboard shortcuts, de
    ```
    uv pip install -r requirements.txt
    ```
-3. Create a `.env` file with your configuration:
+3. Create a `.env` file with your configuration (please do not include any comments in the file):
    ```
-   OPENAI_API_KEY=your_api_key_here
-   OPENAI_API_BASE=your_custom_endpoint_url  # Optional, defaults to OpenAI's endpoint
-   SMARTER_MODEL_API_BASE=your_smarter_model_endpoint_url  # Optional, defaults to same as OPENAI_API_BASE
-   SMARTER_MODEL=your_smarter_model_name  # Optional, defaults to gpt-4
+   # Solving Model Configuration
+   SOLVING_MODEL_API_KEY=your_api_key_here
+   SOLVING_MODEL_BASE_URL=your_custom_endpoint_url
+   SOLVING_MODEL=your_model_name
+
+   # OCR Model Configuration
+   OCR_API_KEY=your_ocr_api_key_here
+   OCR_BASE_URL=your_ocr_endpoint_url
+   OCR_MODEL=your_ocr_model_name
+
+   # Hotkey Configuration
    CAPTURE_HOTKEY=Alt+Enter  # Optional, defaults to Alt+Enter
    QUIT_HOTKEY=Ctrl+Alt+Q  # Optional, defaults to Ctrl+Alt+Q
    RESET_HOTKEY=Ctrl+Alt+R  # Optional, defaults to Ctrl+Alt+R

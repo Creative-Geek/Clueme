@@ -14,7 +14,7 @@ class SignalEmitter(QObject):
 class AIProcessor:
     """Handles all AI-related processing"""
     
-    def __init__(self, api_key, base_url, smarter_model_api_base=None, smarter_model="gpt-4"):
+    def __init__(self, api_key, base_url, smarter_model="gpt-4"):
         """Initialize the AI processor with API configuration"""
         self.api_key = api_key
         self.base_url = base_url
@@ -26,16 +26,6 @@ class AIProcessor:
             base_url=base_url
         )
         
-        # Create a separate client for the smarter model if a different API base is specified
-        if smarter_model_api_base and smarter_model_api_base != base_url:
-            print("Using separate client for smarter model with different API base")
-            self.smarter_client = OpenAI(
-                api_key=api_key,
-                base_url=smarter_model_api_base
-            )
-        else:
-            self.smarter_client = self.client
-            
         self.emitter = SignalEmitter()
         
     def process_question(self, extracted_data):
@@ -77,7 +67,7 @@ class AIProcessor:
 
             context_content = f"Context from extraction:\nQuestion: {question}\nChoices:\n" + "\n".join(f"- {choice}" for choice in choices)
 
-            stream = self.smarter_client.chat.completions.create(
+            stream = self.client.chat.completions.create(
                 model=self.smarter_model,
                 messages=[
                     {"role": "system", "content": context_content},
