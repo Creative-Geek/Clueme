@@ -4,10 +4,10 @@ import os
 import datetime
 import json
 from dotenv import load_dotenv
-from openai import OpenAI
 from PIL import ImageGrab
 
 import ocr
+from ai_processor import AIProcessor
 
 # Import from PySide6 instead of PyQt6
 from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy
@@ -84,110 +84,20 @@ if not API_KEY:
     print("Error: OPENAI_API_KEY environment variable not set.")
     sys.exit(1)
 
-# Create client for the smarter model
-client = OpenAI(
+# Create AI processor
+ai_processor = AIProcessor(
     api_key=API_KEY,
-    base_url=BASE_URL
+    base_url=BASE_URL,
+    smarter_model_api_base=SMARTER_MODEL_API_BASE,
+    smarter_model=SMARTER_MODEL
 )
-
-# Create a separate client for the smarter model if a different API base is specified
-smarter_client = None
-if SMARTER_MODEL_API_BASE and SMARTER_MODEL_API_BASE != BASE_URL:
-    print("Using separate client for smarter model with different API base")
-    smarter_client = OpenAI(
-        api_key=API_KEY,
-        base_url=SMARTER_MODEL_API_BASE
-    )
-else:
-    smarter_client = client
-
-# --- Signal Emitter ---
-class SignalEmitter(QObject):
-    # Changed: pyqtSignal to Signal
-    quit_signal = Signal()
-    response_chunk_received = Signal(str)
-    response_finished = Signal()
-    error_occurred = Signal(str)
-    processing_started = Signal()
-    extraction_complete = Signal(dict)
-
-emitter = SignalEmitter()
 
 # --- Worker Thread for AI Calls ---
 class AIWorker(QObject):
     @Slot(dict)
     def run_answering(self, extracted_data):
         """Runs the AI step (answering) if a question was found."""
-        if not extracted_data.get("question_found"):
-            print("No question found. Skipping answering step.")
-            emitter.response_chunk_received.emit("Didn't find any questions.")
-            emitter.response_finished.emit()
-            return
-        if not extracted_data.get("question") or not extracted_data.get("choices"):
-            print("Question found but question/choices missing. Skipping answering step.")
-            emitter.response_chunk_received.emit("Found question but couldn't extract details.")
-            emitter.response_finished.emit()
-            return
-
-        question = extracted_data["question"]
-        choices = extracted_data["choices"]
-
-        print(f"\n--- Answering MCQ using {SMARTER_MODEL} ---")
-        print(f"Question: {question}")
-        print(f"Choices: {choices}")
-
-        try:
-            # --- Get Answer and Explanation ---
-            answering_prompt = f"""
-            You are an expert AI assistant. Answer the following multiple-choice question and provide a brief explanation for your choice.
-            Limit your total response (answer + explanation) to approximately 700 characters.
-            Be concise and clear. State the correct choice first, then the explanation.
-
-            Question:
-            {question}
-
-            Choices:
-            {chr(10).join(f'- {choice}' for choice in choices)}
-
-            Your Answer (Correct Choice + Brief Explanation):
-            """
-
-            context_content = f"Context from extraction:\nQuestion: {question}\nChoices:\n" + "\n".join(f"- {choice}" for choice in choices)
-
-            stream = smarter_client.chat.completions.create(
-                model=SMARTER_MODEL,
-                messages=[
-                    {"role": "system", "content": context_content},
-                    {"role": "system", "content": "You are a helpful AI assistant specializing in answering MCQs concisely."},
-                    {"role": "user", "content": answering_prompt}
-                ],
-                stream=True,
-                max_tokens=200
-            )
-
-            full_response_content = ""
-            for chunk in stream:
-                content_chunk = chunk.choices[0].delta.content
-                if content_chunk is not None:
-                    full_response_content += content_chunk
-                    emitter.response_chunk_received.emit(content_chunk)
-
-            emitter.response_finished.emit()
-
-            with open('openai_logs.txt', 'a', encoding='utf-8') as f:
-                f.write(f"\n\n=== {datetime.datetime.now().isoformat()} ===\n")
-                f.write(f"Extracted Question:\n{question}\n")
-                f.write(f"Extracted Choices:\n{choices}\n\n")
-                f.write(f"Answering Prompt (User):\n{answering_prompt}\n\n")
-                f.write(f"Response (Smarter Model):\n{full_response_content}\n")
-
-            print(f"Full OpenAI response logged. Length: {len(full_response_content)}")
-
-        except Exception as e:
-            error_message = f"Error during answering: {str(e)}"
-            print(error_message)
-            emitter.response_chunk_received.emit(error_message)
-            emitter.response_finished.emit()
+        ai_processor.process_question(extracted_data)
 
 # --- PySide6 UI Setup ---
 app = QApplication(sys.argv)
@@ -249,7 +159,7 @@ def capture_screen():
         
         if text is None:
             print("OCR failed.")
-            emitter.error_occurred.emit(f"OCR process failed with Gemini Vision. Check logs.")
+            ai_processor.emitter.error_occurred.emit(f"OCR process failed with Gemini Vision. Check logs.")
             return None
         
         print("OCR successful.")
@@ -267,7 +177,7 @@ def capture_screen():
     except Exception as e:
         # Catch errors during ImageGrab itself or other unexpected issues here
         print(f"Error during screen capture phase: {e}")
-        emitter.error_occurred.emit(f"Error capturing screen: {e}")
+        ai_processor.emitter.error_occurred.emit(f"Error capturing screen: {e}")
         return None
 
 # --- Global State ---
@@ -317,7 +227,7 @@ def process_screen_callback():
     
     print("Capture Hotkey pressed!")
     is_processing = True
-    emitter.processing_started.emit()
+    ai_processor.emitter.processing_started.emit()
     
     # Perform screen capture and OCR
     text = capture_screen()
@@ -337,15 +247,15 @@ def process_screen_callback():
                     raise ValueError("Not all items in 'choices' are strings")
 
             print(f"Parsed Extraction Data: {extracted_data}")
-            emitter.extraction_complete.emit(extracted_data)  # Emit result directly to answering step
+            ai_processor.emitter.extraction_complete.emit(extracted_data)  # Emit result directly to answering step
 
         except json.JSONDecodeError:
             print("Error: Gemini did not return valid JSON for extraction.")
-            emitter.error_occurred.emit("Error: Failed to parse extraction result.")
+            ai_processor.emitter.error_occurred.emit("Error: Failed to parse extraction result.")
             is_processing = False
         except ValueError as ve:
             print(f"Error: Invalid JSON structure received: {ve}")
-            emitter.error_occurred.emit(f"Error: Invalid extraction structure ({ve}).")
+            ai_processor.emitter.error_occurred.emit(f"Error: Invalid extraction structure ({ve}).")
             is_processing = False
     else:
         # Handle OCR failure immediately (error signal already emitted)
@@ -353,7 +263,7 @@ def process_screen_callback():
 
 def trigger_quit_from_hotkey():
     print("Quit Hotkey pressed!")
-    emitter.quit_signal.emit()
+    ai_processor.emitter.quit_signal.emit()
 
 @Slot()
 def perform_quit():
@@ -385,26 +295,26 @@ def reset_program():
     position_widget()
 
 # --- Signal/Slot Connections ---
-emitter.processing_started.connect(show_thinking)
-emitter.response_chunk_received.connect(update_label_chunk)
-emitter.response_finished.connect(handle_response_finished)
-emitter.error_occurred.connect(handle_error)
-emitter.quit_signal.connect(perform_quit)
+ai_processor.emitter.processing_started.connect(show_thinking)
+ai_processor.emitter.response_chunk_received.connect(update_label_chunk)
+ai_processor.emitter.response_finished.connect(handle_response_finished)
+ai_processor.emitter.error_occurred.connect(handle_error)
+ai_processor.emitter.quit_signal.connect(perform_quit)
 
 # --- Setup Worker Thread ---
 thread = QThread()
 worker = AIWorker()
 worker.moveToThread(thread)
 
-emitter.extraction_complete.connect(worker.run_answering)
+ai_processor.emitter.extraction_complete.connect(worker.run_answering)
 
 thread.started.connect(lambda: print("Worker thread started."))
 thread.finished.connect(lambda: print("Worker thread finished."))
-emitter.quit_signal.connect(thread.quit)
-emitter.quit_signal.connect(worker.deleteLater)
+ai_processor.emitter.quit_signal.connect(thread.quit)
+ai_processor.emitter.quit_signal.connect(worker.deleteLater)
 
 # Use wait() for proper thread termination before app exit
-emitter.quit_signal.connect(thread.wait)
+ai_processor.emitter.quit_signal.connect(thread.wait)
 
 thread.start()  # Start the thread event loop
 
