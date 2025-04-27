@@ -21,7 +21,7 @@ A Windows application that provides AI assistance through keyboard shortcuts, de
 1. Install Python 3.8 or higher
 2. Install dependencies:
    ```
-   pip install -r requirements.txt
+   uv pip install -r requirements.txt
    ```
 3. Create a `.env` file with your configuration:
    ```
