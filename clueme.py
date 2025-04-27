@@ -68,8 +68,34 @@ def load_env_settings():
         print(f"Loading settings from: {env_path}")
         load_dotenv(env_path)
     else:
-        print(f"Warning: .env file not found at {env_path}")
-        print("Using default settings or environment variables")
+        print(f"Error: .env file not found at {env_path}")
+        
+        # Check if QApplication exists already or create a temporary one
+        from PySide6.QtWidgets import QApplication, QMessageBox
+        app = QApplication.instance()
+        if app is None:
+            # Create a temporary QApplication
+            temp_app = QApplication(sys.argv)
+            needs_temp_app = True
+        else:
+            needs_temp_app = False
+        
+        # Create a message box that will be visible even if no console is present
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Icon.Critical)
+        msg_box.setWindowTitle("Configuration Error")
+        msg_box.setText(f"Required configuration file not found:\n{env_path}\n\nThe application cannot start without proper configuration.")
+        msg_box.setInformativeText("Please create a .env file with your API keys and settings.")
+        msg_box.setDetailedText("The .env file should contain:\nSOLVING_MODEL_API_KEY=your_api_key_here\nSOLVING_MODEL_BASE_URL=optional_base_url\nSOLVING_MODEL=gpt-4 (or another model)")
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg_box.exec()
+        
+        # If we created a temporary app, clean it up
+        if needs_temp_app:
+            del temp_app
+        
+        # Exit the application
+        sys.exit(1)
 
 # Load environment variables
 load_env_settings()
