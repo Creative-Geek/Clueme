@@ -46,6 +46,6 @@ jobs:
         files: dist/clueme.exe
         generate_release_notes: true
         tag_name: ${{ github.ref_name }}
-        release_name: Release ${{ github.ref_name }}
+        name: Release ${{ github.ref_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
