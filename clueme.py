@@ -348,7 +348,7 @@ else:
 widget.show()
 try:
     hwnd = widget.winId()
-    ctypes.windll.user32.SetWindowDisplayAffinity(int(hwnd), 0x00000011)
+    ctypes.windll.user32.SetWindowDisplayAffinity(int(hwnd), 0x00000011) #hide from capture
     print("Window display affinity set to exclude from capture.")
 except Exception as e:
     print(f"Could not set window display affinity (might be normal on non-Windows): {e}")

@@ -5,5 +5,4 @@ __pycache__/*
 gemini_ocr_input.webp
 __pycache__/ocr.cpython-313.pyc
 run_clueme.bat
-clueme.spec
 clueme.exe
