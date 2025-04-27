@@ -25,7 +25,7 @@ A Windows application that provides AI assistance through keyboard shortcuts, de
 
 It was made as a response to the following post on X:
 <div align="center">
-<img src="https://github.com/user-attachments/assets/df19a8a8-f503-4be9-85c5-bd414bdf773f" alt="Clueme Logo" width="500px">
+<img src="https://github.com/user-attachments/assets/1f481890-b723-4360-bdf0-7fc208fde9df" alt="Clueme Logo" width="500px">
 </div>
 
 Do not missuse it, I'm not responsible for the use of this program.
