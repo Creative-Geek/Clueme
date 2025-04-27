@@ -6,6 +6,8 @@
 
 </div>
 
+------
+
 A Windows application that provides AI assistance through keyboard shortcuts, designed to be invisible to screen recording software.
 
 ## Features
@@ -15,6 +17,17 @@ A Windows application that provides AI assistance through keyboard shortcuts, de
 - Global keyboard shortcuts
 - Stealth mode (invisible to screen recording)
 - Modular architecture with separate AI processing component
+- Could work on macOS but you'll need to edit some lines
+-----
+
+⚠️⚠️⚠️ Danger: this program is for research purposes only!
+
+It was made as a response to the following post on X:
+<div align="center">
+<img src="https://github.com/user-attachments/assets/ea695b17-fa31-49c8-96b1-750a5c1cd981" alt="Clueme Logo" width="500px">
+</div>
+
+Do not missuse it, I'm not responsible for the use of this program.
 
 ## Setup
 
@@ -62,6 +75,12 @@ The application is built with a modular architecture:
 - `ai_processor.py`: Dedicated module for AI processing and OpenAI integration
 - `ocr.py`: OCR functionality using Gemini Vision
 
-## Note
+# Notes:
+## Can work offline:
+If you have ollama with a vision model you can specify it to be the endpoint for both OCR and Solving models (specify the models too).
 
-The application uses Gemini Vision for OCR, which requires an internet connection to function.
+## Requires Windows 10 version 2004 or higher:
+I only tested it on Windows 11 24H2 but the flag for screen capture exclusion might not work on older versions.
+
+## Make the AI hear:
+You can intergrate whisper, adding the generated STT as context for each message, but it's not implemented, you're welcome to put in a pr.
