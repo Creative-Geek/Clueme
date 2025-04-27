@@ -27,8 +27,9 @@ It was made as a response to the following post on X:
 <div align="center">
 <img src="https://github.com/user-attachments/assets/1f481890-b723-4360-bdf0-7fc208fde9df" alt="Clueme Logo" width="500px">
 </div>
+As apparantly on whatever planet they live, everyone makes $7000+ a month.
 
-Do not missuse it, I'm not responsible for the use of this program.
+Still, Do NOT missuse it, I'm not responsible for your or anyone else's use of this program.
 
 ## Setup
 
@@ -50,9 +51,9 @@ Do not missuse it, I'm not responsible for the use of this program.
    OCR_MODEL=your_ocr_model_name
 
    # Hotkey Configuration
-   CAPTURE_HOTKEY=Alt+Enter  # Optional, defaults to Alt+Enter
-   QUIT_HOTKEY=Ctrl+Alt+Q  # Optional, defaults to Ctrl+Alt+Q
-   RESET_HOTKEY=Ctrl+Alt+R  # Optional, defaults to Ctrl+Alt+R
+   CAPTURE_HOTKEY=Alt+Enter
+   QUIT_HOTKEY=Ctrl+Alt+Q
+   RESET_HOTKEY=Ctrl+Alt+R
    ```
 
 ## Usage
