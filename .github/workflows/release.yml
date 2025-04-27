@@ -44,19 +44,31 @@ jobs:
       id: date
       run: echo "date=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
         
-    - name: Create and push tag
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git tag -a "v${{ steps.date.outputs.date }}" -m "Release v${{ steps.date.outputs.date }}"
-        git push origin "v${{ steps.date.outputs.date }}"
-        
     - name: Create Release
-      id: create_release
-      uses: softprops/action-gh-release@v1
+      uses: actions/github-script@v7
       with:
-        tag_name: v${{ steps.date.outputs.date }}
-        files: dist/clueme.exe
-        generate_release_notes: true
+        script: |
+          const tag = `v${{ steps.date.outputs.date }}`;
+          const releaseNotes = `Release ${tag}\n\nAuto-generated release for commit ${{ github.sha }}`;
+          
+          // Create the release
+          const response = await github.rest.repos.createRelease({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            tag_name: tag,
+            name: tag,
+            body: releaseNotes,
+            draft: false,
+            prerelease: false
+          });
+          
+          // Upload the asset
+          const asset = await github.rest.repos.uploadReleaseAsset({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            release_id: response.data.id,
+            name: 'clueme.exe',
+            data: fs.readFileSync('dist/clueme.exe')
+          });
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
