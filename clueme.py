@@ -3,6 +3,7 @@ import ctypes
 import os
 import datetime
 import json
+import platform
 from dotenv import load_dotenv
 from PIL import ImageGrab
 
@@ -13,6 +14,37 @@ from ai_processor import AIProcessor
 from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy
 from PySide6.QtCore import Qt, QObject, Signal, QThread, Slot
 from global_hotkeys import register_hotkeys, start_checking_hotkeys, stop_checking_hotkeys
+
+# Windows version detection
+def get_windows_version():
+    """Get Windows major and minor version numbers"""
+    if platform.system() != 'Windows':
+        return None
+    
+    win_ver = platform.win32_ver()[1].split('.')
+    try:
+        major = int(win_ver[0])
+        minor = int(win_ver[1]) if len(win_ver) > 1 else 0
+        build = int(win_ver[2]) if len(win_ver) > 2 else 0
+        return (major, minor, build)
+    except (IndexError, ValueError):
+        return None
+
+# Check if Windows 10 version 2004 or higher (build 19041+) or Windows 11
+def is_win10_2004_or_higher():
+    ver = get_windows_version()
+    if not ver:
+        return False
+    
+    # Windows 11 or higher
+    if ver[0] >= 11:
+        return True
+    
+    # Windows 11 build 22631 or higher
+    if ver[0] == 10 and ver[2] >= 22631:
+        return True
+    
+    return False
 
 def is_frozen():
     """Check if running as a compiled executable (Nuitka)"""
@@ -100,8 +132,20 @@ class AIWorker(QObject):
 app = QApplication(sys.argv)
 widget = QWidget()
 
-# Window Styling
-widget.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool | Qt.WindowType.WindowTransparentForInput)
+# Window Styling - Different approach based on Windows version
+windows_version = get_windows_version()
+print(f"Detected Windows version: {windows_version if windows_version else 'Non-Windows OS'}")
+
+# Use different window flags depending on Windows version
+if is_win10_2004_or_higher():
+    # For Windows 10 version 2004+ and Windows 11, we can use FramelessWindowHint safely
+    print("Using FramelessWindowHint (Windows 10 v2004+ or Windows 11 detected)")
+    widget.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool | Qt.WindowType.WindowTransparentForInput)
+else:
+    # For older Windows versions, avoid FramelessWindowHint to ensure SetWindowDisplayAffinity works
+    print("Avoiding FramelessWindowHint (older Windows version detected)")
+    widget.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool | Qt.WindowType.WindowTransparentForInput)
+    
 widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 widget.setAttribute(Qt.WidgetAttribute.WA_NoMousePropagation)
@@ -348,8 +392,26 @@ else:
 widget.show()
 try:
     hwnd = widget.winId()
-    ctypes.windll.user32.SetWindowDisplayAffinity(int(hwnd), 0x00000011) #hide from capture
-    print("Window display affinity set to exclude from capture.")
+    # Make sure we get a valid window handle
+    if hwnd:
+        # Apply SetWindowDisplayAffinity with proper error handling
+        try:
+            result = ctypes.windll.user32.SetWindowDisplayAffinity(int(hwnd), 0x00000011)  # DWMWA_EXCLUDED_FROM_CAPTURE
+            if result:
+                print("Window display affinity set to exclude from capture.")
+            else:
+                error_code = ctypes.windll.kernel32.GetLastError()
+                print(f"Failed to set window display affinity. Error code: {error_code}")
+                
+                # Try an alternative approach if the current Windows version needs it
+                if not is_win10_2004_or_higher():
+                    print("Trying alternative approach for older Windows versions...")
+                    # For older Windows versions, we may need to recreate the window
+                    # or use a different attribute
+        except Exception as e:
+            print(f"Error in SetWindowDisplayAffinity: {e}")
+    else:
+        print("Could not get window handle (winId)")
 except Exception as e:
     print(f"Could not set window display affinity (might be normal on non-Windows): {e}")
 
