@@ -137,8 +137,37 @@ print(f"Reset Hotkey: {RESET_HOTKEY}")
 
 # Initialize the client
 if not SOLVING_MODEL_API_KEY:
-    print("Error: SOLVING_MODEL_API_KEY environment variable not set.")
-    sys.exit(1)
+
+    print("Error: SOLVING_MODEL_API_KEY environment variable not set, trying OCR Model for solving.")
+    SOLVING_MODEL_API_KEY = os.getenv('OCR_API_KEY')
+    if SOLVING_MODEL_API_KEY:
+        SOLVING_MODEL_BASE_URL = os.getenv('OCR_BASE_URL')
+        SOLVING_MODEL = os.getenv('OCR_MODEL')
+    else:
+        from PySide6.QtWidgets import QApplication, QMessageBox
+        app = QApplication.instance()
+        if app is None:
+            # Create a temporary QApplication
+            temp_app = QApplication(sys.argv)
+            needs_temp_app = True
+        else:
+            needs_temp_app = False
+                # Create a message box that will be visible even if no console is present
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Icon.Critical)
+        msg_box.setWindowTitle("Configuration Error")
+        msg_box.setText(f"No API Keys provided in the .env file.")
+        msg_box.setInformativeText("Please create a .env file with your API keys and settings.")
+        msg_box.setDetailedText("The .env file should contain:\nSOLVING_MODEL_API_KEY=your_api_key_here\nSOLVING_MODEL_BASE_URL=optional_base_url\nSOLVING_MODEL=gpt-4 (or another model)")
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg_box.exec()
+        
+        # If we created a temporary app, clean it up
+        if needs_temp_app:
+            del temp_app
+        
+        # Exit the application
+        sys.exit(1)
 
 # Create AI processor
 ai_processor = AIProcessor(
