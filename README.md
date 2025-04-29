@@ -87,8 +87,11 @@ The application is built with a modular architecture:
 ## Can work offline:
 If you have ollama with a vision model you can specify it to be the endpoint for both OCR and Solving models (specify the models too).
 
-## Requires Windows 10 version 2004 or higher:
-I only tested it on Windows 11 24H2 but the flag for screen capture exclusion might not work on older versions.
+## ~~Requires Windows 10 version 2004 or higher~~(fixed):
+~~I only tested it on Windows 11 24H2 but the flag for screen capture exclusion might not work on older versions.~~
+
+
+Testing on windows 10 build 19045 revealed that it doesn't work unless the window isn't frameless, which was implemented as a dynamic check during runtime.
 
 ## Make the AI hear:
 You can intergrate whisper, adding the generated STT as context for each message, but it's not implemented, you're welcome to put in a pr.
