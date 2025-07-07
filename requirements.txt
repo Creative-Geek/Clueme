@@ -32,7 +32,7 @@ keyboard==0.13.5
     # via global-hotkeys
 openai==1.76.0
     # via clueme (pyproject.toml)
-pillow==11.2.1
+pillow==11.3.0
     # via clueme (pyproject.toml)
 pydantic==2.11.3
     # via openai
