@@ -1,4 +1,5 @@
 openai_logs.txt
+coding_logs.txt
 .env
 .env_bak
 __pycache__/*
