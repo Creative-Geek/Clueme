@@ -96,11 +96,14 @@ Solution:"""
             self.emitter.response_finished.emit()
             
             # Log the interaction
-            with open('coding_logs.txt', 'a', encoding='utf-8') as f:
-                f.write(f"\n\n=== {datetime.datetime.now().isoformat()} ===\n")
-                f.write(f"Input Text:\n{text}\n\n")
-                f.write(f"Model: {self.model}\n")
-                f.write(f"Response:\n{full_response}\n")
+            try:
+                with open('coding_logs.txt', 'a', encoding='utf-8') as f:
+                    f.write(f"\n\n=== {datetime.datetime.now().isoformat()} ===\n")
+                    f.write(f"Input Text:\n{text}\n\n")
+                    f.write(f"Model: {self.model}\n")
+                    f.write(f"Response:\n{full_response}\n")
+            except Exception as log_error:
+                print(f"Warning: Could not write to log file: {log_error}")
             
             print(f"Response logged. Length: {len(full_response)}")
             

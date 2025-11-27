@@ -55,7 +55,8 @@ def is_win10_2004_or_higher():
     if ver[0] >= 11:
         return True
     
-    if ver[0] == 10 and ver[2] >= 22631:
+    # Windows 10 version 2004 has build 19041
+    if ver[0] == 10 and ver[2] >= 19041:
         return True
     
     return False
@@ -167,12 +168,12 @@ class MarkdownRenderer:
         # First, extract and highlight code blocks manually
         import re
         
-        # Pattern for fenced code blocks
-        code_block_pattern = r'```(\w*)\n(.*?)```'
+        # Pattern for fenced code blocks - handles optional language and flexible newlines
+        code_block_pattern = r'```(\w*)\s*(.*?)```'
         
         def replace_code_block(match):
-            lang = match.group(1) or None
-            code = match.group(2)
+            lang = match.group(1).strip() or None
+            code = match.group(2).strip()
             return self.highlight_code(code, lang)
         
         # Replace code blocks with highlighted versions
@@ -188,16 +189,16 @@ class MarkdownRenderer:
         """Simple markdown to HTML conversion for non-code content"""
         import re
         
-        # Inline code
+        # Inline code (must be processed before other formatting)
         text = re.sub(r'`([^`]+)`', r'<code style="background-color: #3a3a3a; color: #f8f8f2; padding: 2px 5px; border-radius: 3px;">\1</code>', text)
         
-        # Bold
-        text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
-        text = re.sub(r'__(.+?)__', r'<b>\1</b>', text)
+        # Bold (process before italic to handle ** correctly)
+        text = re.sub(r'\*\*([^*]+)\*\*', r'<b>\1</b>', text)
+        text = re.sub(r'__([^_]+)__', r'<b>\1</b>', text)
         
-        # Italic
-        text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
-        text = re.sub(r'_(.+?)_', r'<i>\1</i>', text)
+        # Italic (use negative lookahead/lookbehind to avoid matching bold markers)
+        text = re.sub(r'(?<!\*)\*([^*]+)\*(?!\*)', r'<i>\1</i>', text)
+        text = re.sub(r'(?<!_)_([^_]+)_(?!_)', r'<i>\1</i>', text)
         
         # Headers
         text = re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
@@ -411,10 +412,13 @@ def capture_screen():
         print(f"Captured text (first 200 chars): {text[:200]}")
         
         # Log the captured text
-        with open('coding_logs.txt', 'a', encoding='utf-8') as f:
-            f.write(f"\n\n=== OCR TEXT (OneOCR) {datetime.datetime.now().isoformat()} ===\n")
-            f.write(text)
-            f.write("\n=== END OCR TEXT ===\n")
+        try:
+            with open('coding_logs.txt', 'a', encoding='utf-8') as f:
+                f.write(f"\n\n=== OCR TEXT (OneOCR) {datetime.datetime.now().isoformat()} ===\n")
+                f.write(text)
+                f.write("\n=== END OCR TEXT ===\n")
+        except Exception as log_error:
+            print(f"Warning: Could not write to log file: {log_error}")
         
         return text
         
