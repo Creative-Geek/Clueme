@@ -41,7 +41,7 @@ OCR_ENGINE = "gemini"
 # OCR Configuration
 OCR_API_KEY = os.getenv("OCR_API_KEY")
 OCR_BASE_URL = os.getenv("OCR_BASE_URL")
-OCR_MODEL = os.getenv("OCR_MODEL", "gemini-2.5-flash-preview-04-17")
+OCR_MODEL = os.getenv("OCR_MODEL", "gemini-2.5-flash")
 
 # Log configuration
 print(f"Base Directory: {get_base_dir()}")
